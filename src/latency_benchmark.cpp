@@ -66,6 +66,7 @@ public:
     virtual void NoteOn(uchar channel, uchar note, uchar velocity, bigtime_t time) {
         (void)channel;
         (void)velocity;
+        (void)time;
         if (waiting_for_response && note == PAD_NOTE_TEST) {
             response_time = system_time();
             waiting_for_response = false;
@@ -79,7 +80,7 @@ public:
             // Send note-on
             waiting_for_response = true;
             bigtime_t send_time = system_time();
-            producer->SprayNoteOn(0, PAD_NOTE_TEST, 127, send_time);
+            producer->SprayNoteOn(1, PAD_NOTE_TEST, 127);
 
             // Wait for response (with timeout)
             bigtime_t timeout = send_time + 100000; // 100ms timeout
@@ -100,7 +101,7 @@ public:
             }
 
             // Send note-off to cleanup
-            producer->SprayNoteOff(0, PAD_NOTE_TEST, 0, system_time());
+            producer->SprayNoteOff(1, PAD_NOTE_TEST, 0);
             snooze(10000); // 10ms delay between tests
         }
 
@@ -112,59 +113,58 @@ private:
     volatile bigtime_t response_time;
 };
 
-// USB Raw latency test
+// USB Raw latency test with callback
+static volatile bool usb_waiting_for_response = false;
+static volatile bigtime_t usb_response_time = 0;
+
+void USBLatencyCallback(uint8_t status, uint8_t data1, uint8_t data2) {
+    if (usb_waiting_for_response && status == 0x90 && data1 == PAD_NOTE_TEST) {
+        usb_response_time = system_time();
+        usb_waiting_for_response = false;
+    }
+}
+
 bool RunUSBRawLatencyTest(USBRawMIDI* usb, BenchmarkStats& stats) {
-    if (!usb || !usb->IsOpen()) {
+    if (!usb || !usb->IsConnected()) {
         printf("ERROR: USB Raw device not available\n");
         return false;
     }
 
-    uint8_t midi_msg[3];
+    // Set callback for receiving MIDI
+    usb->SetMIDICallback(USBLatencyCallback);
 
     for (int i = 0; i < WARMUP_ITERATIONS + BENCHMARK_ITERATIONS; i++) {
         // Send note-on
+        usb_waiting_for_response = true;
         bigtime_t send_time = system_time();
-        midi_msg[0] = 0x90; // Note On
-        midi_msg[1] = PAD_NOTE_TEST;
-        midi_msg[2] = 127;
 
-        if (usb->SendMIDIMessage(midi_msg, 3) != APC_SUCCESS) {
+        if (usb->SendNoteOn(PAD_NOTE_TEST, 127) != APC_SUCCESS) {
             if (i >= WARMUP_ITERATIONS) {
                 stats.failure_count++;
             }
             continue;
         }
 
-        // Wait for response
+        // Wait for response (with timeout)
         bigtime_t timeout = send_time + 100000; // 100ms timeout
-        bool got_response = false;
+        while (usb_waiting_for_response && system_time() < timeout) {
+            snooze(100); // 0.1ms polling interval
+        }
 
-        while (system_time() < timeout) {
-            uint8_t recv_msg[3];
-            int bytes = usb->ReceiveMIDIMessage(recv_msg, 3, 100); // 0.1ms timeout
-
-            if (bytes >= 3 && recv_msg[0] == 0x90 && recv_msg[1] == PAD_NOTE_TEST) {
-                bigtime_t recv_time = system_time();
-                bigtime_t latency = recv_time - send_time;
-
-                // Only record after warmup
-                if (i >= WARMUP_ITERATIONS) {
-                    stats.RecordMeasurement(latency);
-                }
-                got_response = true;
-                break;
+        if (!usb_waiting_for_response) {
+            bigtime_t latency = usb_response_time - send_time;
+            // Only record after warmup
+            if (i >= WARMUP_ITERATIONS) {
+                stats.RecordMeasurement(latency);
+            }
+        } else {
+            if (i >= WARMUP_ITERATIONS) {
+                stats.failure_count++;
             }
         }
 
-        if (!got_response && i >= WARMUP_ITERATIONS) {
-            stats.failure_count++;
-        }
-
         // Send note-off to cleanup
-        midi_msg[0] = 0x80; // Note Off
-        midi_msg[2] = 0;
-        usb->SendMIDIMessage(midi_msg, 3);
-
+        usb->SendNoteOff(PAD_NOTE_TEST);
         snooze(10000); // 10ms delay between tests
     }
 
@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
             if (!RunUSBRawLatencyTest(&usb, usb_stats)) {
                 printf("WARNING: USB Raw test failed\n");
             }
-            usb.Cleanup();
+            usb.Shutdown();
         } else {
             printf("ERROR: Failed to initialize USB Raw device\n");
             test_usb = false;
@@ -270,13 +270,15 @@ int main(int argc, char** argv) {
             BMidiProducer* producer = nullptr;
             int32 id = 0;
 
-            while ((id = roster->NextProducer(&id)) > 0) {
-                BMidiProducer* prod = roster->FindProducer(id);
-                if (prod && strstr(prod->Name(), "APC")) {
+            while (true) {
+                BMidiProducer* prod = roster->NextProducer(&id);
+                if (!prod) break;
+
+                if (strstr(prod->Name(), "APC")) {
                     producer = prod;
                     break;
                 }
-                if (prod) prod->Release();
+                prod->Release();
             }
 
             if (!producer) {
