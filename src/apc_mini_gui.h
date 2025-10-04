@@ -49,10 +49,10 @@ class MIDIEventLooper;
 #define APC_GUI_CORNER_RADIUS     3     // Radius for rounded corners
 
 // Color Constants (matching real APC Mini MK2)
-#define APC_GUI_BACKGROUND_COLOR  rgb_color{15, 15, 15, 255}    // Very dark background
-#define APC_GUI_DEVICE_BODY_COLOR rgb_color{28, 28, 28, 255}    // Matte black device body
-#define APC_GUI_DEVICE_BODY_HIGHLIGHT rgb_color{40, 40, 40, 255} // Body highlight for 3D effect
-#define APC_GUI_DEVICE_BODY_SHADOW rgb_color{18, 18, 18, 255}   // Body shadow for depth
+#define APC_GUI_BACKGROUND_COLOR  rgb_color{18, 17, 16, 255}    // Very dark background with warm tone
+#define APC_GUI_DEVICE_BODY_COLOR rgb_color{30, 29, 28, 255}    // Matte black device body with warm tone
+#define APC_GUI_DEVICE_BODY_HIGHLIGHT rgb_color{42, 41, 40, 255} // Body highlight for 3D effect with warm tone
+#define APC_GUI_DEVICE_BODY_SHADOW rgb_color{20, 19, 18, 255}   // Body shadow for depth with warm tone
 
 // Pad colors - hardware accurate with proper contrast
 #define APC_GUI_PAD_OFF_COLOR     rgb_color{38, 38, 38, 255}    // Dark grey when off
