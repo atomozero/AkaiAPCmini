@@ -37,7 +37,7 @@ class MIDIEventLooper;
 // GUI Constants - Hardware Accurate Dimensions
 #define APC_GUI_PAD_SIZE          35    // Size of each pad in pixels
 #define APC_GUI_PAD_SPACING       3     // Spacing between pads
-#define APC_GUI_FADER_WIDTH       40    // Width of faders
+#define APC_GUI_FADER_WIDTH       35    // Width of faders (matches pad width for alignment)
 #define APC_GUI_FADER_HEIGHT      200   // Height of faders
 #define APC_GUI_FADER_TRACK_WIDTH 10    // Width of fader track
 #define APC_GUI_FADER_KNOB_WIDTH  28    // Width of fader knob

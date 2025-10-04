@@ -724,9 +724,9 @@ BRect FaderView::CalculateFaderFrame(uint8_t fader_index, bool is_master)
 
     if (is_master) {
         // Master fader on the right with some spacing
-        x = APC_MINI_TRACK_FADER_COUNT * (width + 5) + 15;
+        x = APC_MINI_TRACK_FADER_COUNT * (width + APC_GUI_PAD_SPACING) + 10;
     } else {
-        x = fader_index * (width + 5);
+        x = fader_index * (width + APC_GUI_PAD_SPACING);
     }
 
     return BRect(x, y, x + width - 1, y + height - 1);

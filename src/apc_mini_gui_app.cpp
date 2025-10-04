@@ -716,9 +716,9 @@ void APCMiniWindow::SetupLayout()
     float pad_matrix_height = 8 * APC_GUI_PAD_SIZE + 7 * APC_GUI_PAD_SPACING;
 
     // Calculate fader width exactly as CalculateFaderFrame does:
-    // 8 track faders: 8 * (width + 5)
-    // Master fader: + 15 (spacing) + width
-    float fader_width = 8 * (APC_GUI_FADER_WIDTH + 5) + 15 + APC_GUI_FADER_WIDTH;
+    // 8 track faders: 8 * (width + PAD_SPACING)
+    // Master fader: + 10 (spacing) + width
+    float fader_width = 8 * (APC_GUI_FADER_WIDTH + APC_GUI_PAD_SPACING) + 10 + APC_GUI_FADER_WIDTH;
     float fader_height = APC_GUI_FADER_HEIGHT + 40;
 
     // 1. Create and position track buttons (aligned with pad columns)
@@ -728,7 +728,7 @@ void APCMiniWindow::SetupLayout()
         track_buttons[i] = new ControlButton(btn_rect, i, ControlButton::BUTTON_TRACK);
         background_view->AddChild(track_buttons[i]);
     }
-    current_y += APC_GUI_BUTTON_HEIGHT + 8;
+    current_y += APC_GUI_BUTTON_HEIGHT + 12;
 
     // 2. Create and position pad matrix
     BRect pad_rect(margin, current_y, margin + pad_matrix_width - 1, current_y + pad_matrix_height - 1);
@@ -742,7 +742,7 @@ void APCMiniWindow::SetupLayout()
     button_panel = new ControlButtonView(button_panel_rect);
     background_view->AddChild(button_panel);
 
-    current_y += pad_matrix_height + 30;
+    current_y += pad_matrix_height + 22;
 
     // 4. Create and position faders (below pads, aligned with pad matrix)
     BRect fader_rect(margin, current_y, margin + fader_width - 1, current_y + fader_height - 1);
