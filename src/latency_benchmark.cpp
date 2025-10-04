@@ -57,11 +57,13 @@ struct BenchmarkStats {
     }
 };
 
-// MIDI API test class
-class MIDILatencyTest : public BMidiLocalConsumer {
+// MIDI API test classes
+class MIDILatencyConsumer : public BMidiLocalConsumer {
 public:
-    MIDILatencyTest() : BMidiLocalConsumer("APC Mini Latency Test"),
-                        waiting_for_response(false), response_time(0) {}
+    MIDILatencyConsumer() : BMidiLocalConsumer("APC Mini Latency Test Consumer"),
+                            waiting_for_response(false), response_time(0) {
+        SetName("Latency Test Input");
+    }
 
     virtual void NoteOn(uchar channel, uchar note, uchar velocity, bigtime_t time) {
         (void)channel;
@@ -73,45 +75,103 @@ public:
         }
     }
 
-    bool RunLatencyTest(BMidiProducer* producer, BenchmarkStats& stats) {
-        if (!producer) return false;
+    void StartWaiting() {
+        waiting_for_response = true;
+    }
 
-        for (int i = 0; i < WARMUP_ITERATIONS + BENCHMARK_ITERATIONS; i++) {
-            // Send note-on
-            waiting_for_response = true;
-            bigtime_t send_time = system_time();
-            producer->SprayNoteOn(1, PAD_NOTE_TEST, 127, send_time);
+    bool IsWaiting() const {
+        return waiting_for_response;
+    }
 
-            // Wait for response (with timeout)
-            bigtime_t timeout = send_time + 100000; // 100ms timeout
-            while (waiting_for_response && system_time() < timeout) {
-                snooze(100); // 0.1ms polling interval
-            }
-
-            if (!waiting_for_response) {
-                bigtime_t latency = response_time - send_time;
-                // Only record after warmup
-                if (i >= WARMUP_ITERATIONS) {
-                    stats.RecordMeasurement(latency);
-                }
-            } else {
-                if (i >= WARMUP_ITERATIONS) {
-                    stats.failure_count++;
-                }
-            }
-
-            // Send note-off to cleanup
-            producer->SprayNoteOff(1, PAD_NOTE_TEST, 0, system_time());
-            snooze(10000); // 10ms delay between tests
-        }
-
-        return stats.success_count > 0;
+    bigtime_t GetResponseTime() const {
+        return response_time;
     }
 
 private:
     volatile bool waiting_for_response;
     volatile bigtime_t response_time;
 };
+
+class MIDILatencyProducer : public BMidiLocalProducer {
+public:
+    MIDILatencyProducer() : BMidiLocalProducer("APC Mini Latency Test Producer") {
+        SetName("Latency Test Output");
+    }
+};
+
+bool RunMIDILatencyTest(BMidiProducer* apc_producer, BMidiConsumer* apc_consumer, BenchmarkStats& stats) {
+    if (!apc_producer || !apc_consumer) return false;
+
+    // Create local consumer to receive responses
+    MIDILatencyConsumer local_consumer;
+    if (local_consumer.Register() != B_OK) {
+        printf("ERROR: Failed to register consumer\n");
+        return false;
+    }
+
+    // Create local producer to send commands
+    MIDILatencyProducer local_producer;
+    if (local_producer.Register() != B_OK) {
+        printf("ERROR: Failed to register producer\n");
+        local_consumer.Unregister();
+        return false;
+    }
+
+    // Connect: APC Producer -> Our Consumer (to receive responses)
+    if (apc_producer->Connect(&local_consumer) != B_OK) {
+        printf("ERROR: Failed to connect APC producer to consumer\n");
+        local_producer.Unregister();
+        local_consumer.Unregister();
+        return false;
+    }
+
+    // Connect: Our Producer -> APC Consumer (to send commands)
+    if (local_producer.Connect(apc_consumer) != B_OK) {
+        printf("ERROR: Failed to connect producer to APC consumer\n");
+        apc_producer->Disconnect(&local_consumer);
+        local_producer.Unregister();
+        local_consumer.Unregister();
+        return false;
+    }
+
+    // Run the test
+    for (int i = 0; i < WARMUP_ITERATIONS + BENCHMARK_ITERATIONS; i++) {
+        // Send note-on
+        local_consumer.StartWaiting();
+        bigtime_t send_time = system_time();
+        local_producer.SprayNoteOn(1, PAD_NOTE_TEST, 127, send_time);
+
+        // Wait for response (with timeout)
+        bigtime_t timeout = send_time + 100000; // 100ms timeout
+        while (local_consumer.IsWaiting() && system_time() < timeout) {
+            snooze(100); // 0.1ms polling interval
+        }
+
+        if (!local_consumer.IsWaiting()) {
+            bigtime_t latency = local_consumer.GetResponseTime() - send_time;
+            // Only record after warmup
+            if (i >= WARMUP_ITERATIONS) {
+                stats.RecordMeasurement(latency);
+            }
+        } else {
+            if (i >= WARMUP_ITERATIONS) {
+                stats.failure_count++;
+            }
+        }
+
+        // Send note-off to cleanup
+        local_producer.SprayNoteOff(1, PAD_NOTE_TEST, 0, system_time());
+        snooze(10000); // 10ms delay between tests
+    }
+
+    // Cleanup
+    apc_producer->Disconnect(&local_consumer);
+    local_producer.Disconnect(apc_consumer);
+    local_producer.Unregister();
+    local_consumer.Unregister();
+
+    return stats.success_count > 0;
+}
 
 // USB Raw latency test with callback
 static volatile bool usb_waiting_for_response = false;
@@ -267,40 +327,48 @@ int main(int argc, char** argv) {
             printf("ERROR: Cannot access MIDI roster\n");
             test_midi = false;
         } else {
-            // Find APC Mini producer
-            BMidiProducer* producer = nullptr;
+            // Find APC Mini producer and consumer
+            BMidiProducer* apc_producer = nullptr;
+            BMidiConsumer* apc_consumer = nullptr;
             int32 id = 0;
 
+            // Find producer
             while (true) {
                 BMidiProducer* prod = roster->NextProducer(&id);
                 if (!prod) break;
 
                 if (strstr(prod->Name(), "APC")) {
-                    producer = prod;
+                    apc_producer = prod;
                     break;
                 }
                 prod->Release();
             }
 
-            if (!producer) {
-                printf("ERROR: APC Mini MIDI producer not found\n");
+            // Find consumer
+            id = 0;
+            while (true) {
+                BMidiConsumer* cons = roster->NextConsumer(&id);
+                if (!cons) break;
+
+                if (strstr(cons->Name(), "APC")) {
+                    apc_consumer = cons;
+                    break;
+                }
+                cons->Release();
+            }
+
+            if (!apc_producer || !apc_consumer) {
+                printf("ERROR: APC Mini MIDI endpoints not found\n");
+                if (apc_producer) apc_producer->Release();
+                if (apc_consumer) apc_consumer->Release();
                 test_midi = false;
             } else {
-                MIDILatencyTest consumer;
-                consumer.Register();
-
-                if (producer->Connect(&consumer) != B_OK) {
-                    printf("ERROR: Failed to connect to MIDI producer\n");
-                    test_midi = false;
-                } else {
-                    if (!consumer.RunLatencyTest(producer, midi_stats)) {
-                        printf("WARNING: MIDI API test failed\n");
-                    }
-                    producer->Disconnect(&consumer);
+                if (!RunMIDILatencyTest(apc_producer, apc_consumer, midi_stats)) {
+                    printf("WARNING: MIDI API test failed\n");
                 }
 
-                consumer.Unregister();
-                producer->Release();
+                apc_producer->Release();
+                apc_consumer->Release();
             }
         }
     }
