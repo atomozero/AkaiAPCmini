@@ -723,8 +723,8 @@ BRect FaderView::CalculateFaderFrame(uint8_t fader_index, bool is_master)
     y = 0;
 
     if (is_master) {
-        // Master fader on the right with some spacing
-        x = APC_MINI_TRACK_FADER_COUNT * (width + APC_GUI_PAD_SPACING) + 10;
+        // Master fader on the right with distinct spacing
+        x = APC_MINI_TRACK_FADER_COUNT * (width + APC_GUI_PAD_SPACING) + 12;
     } else {
         x = fader_index * (width + APC_GUI_PAD_SPACING);
     }
@@ -879,7 +879,7 @@ void ControlButton::DrawButtonLabel(BRect rect)
     switch (button_type) {
         case BUTTON_TRACK:
             label_text << (button_index + 1);
-            font_size = 11;  // Increased from 10 for better visibility
+            font_size = 12;  // Increased for better readability
             use_bold = true;
             break;
         case BUTTON_SCENE:
@@ -1053,7 +1053,7 @@ ControlButtonView::ControlButtonView(BRect frame)
     float button_panel_width = APC_GUI_BUTTON_WIDTH + 4;
     // Height: 8 scene buttons (aligned with pad matrix) + shift button below
     float pad_matrix_height = 8 * APC_GUI_PAD_SIZE + 7 * APC_GUI_PAD_SPACING;
-    float button_panel_height = pad_matrix_height + 8 + APC_GUI_SHIFT_BUTTON_SIZE;  // Pad matrix + gap + shift
+    float button_panel_height = pad_matrix_height + 18 + APC_GUI_SHIFT_BUTTON_SIZE;  // Pad matrix + gap + shift
 
     SetExplicitMinSize(BSize(button_panel_width, button_panel_height));
     SetExplicitMaxSize(BSize(button_panel_width, button_panel_height));
@@ -1151,7 +1151,7 @@ BRect ControlButtonView::CalculateButtonFrame(uint8_t index, ControlButton::Butt
             width = height = APC_GUI_SHIFT_BUTTON_SIZE;
             x = 3 + (APC_GUI_BUTTON_WIDTH - APC_GUI_SHIFT_BUTTON_SIZE) / 2;  // Center under scene buttons
             float pad_matrix_height = 8 * APC_GUI_PAD_SIZE + 7 * APC_GUI_PAD_SPACING;
-            y = pad_matrix_height + 10;  // Below pad matrix with gap
+            y = pad_matrix_height + 18;  // Below pad matrix with increased gap
             break;
         }
 
