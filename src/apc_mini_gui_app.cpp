@@ -751,13 +751,25 @@ void APCMiniWindow::SetupLayout()
 
     current_y += fader_height + 15;
 
-    // 5. Create and position status text at the bottom (aligned with faders)
-    BRect status_rect(margin, current_y, margin + fader_width - 1, current_y + 25);
+    // 5. Create and position status bar at the bottom with background panel
+    BRect status_panel_rect(margin - 5, current_y - 5, margin + fader_width + 4, current_y + 30);
+    BBox* status_panel = new BBox(status_panel_rect, "status_panel");
+    status_panel->SetViewColor(rgb_color{45, 44, 43, 255});  // Slightly lighter warm background
+    status_panel->SetBorder(B_PLAIN_BORDER);
+    background_view->AddChild(status_panel);
+
+    // Status text inside the panel
+    BRect status_rect(8, 8, status_panel_rect.Width() - 8, 22);
     status_view = new BStringView(status_rect, "status", "Status: Disconnected");
     status_view->SetHighColor(APC_GUI_STATUS_COLOR);  // White status text
-    background_view->AddChild(status_view);
+    status_view->SetFontSize(11);  // Slightly larger font
+    BFont font;
+    status_view->GetFont(&font);
+    font.SetFace(B_BOLD_FACE);
+    status_view->SetFont(&font);
+    status_panel->AddChild(status_view);
 
-    current_y += 35;  // Status height + small margin
+    current_y += 40;  // Status panel height + margin
 
     // Calculate optimal window size - ensure both scene buttons and faders are visible
     float scene_buttons_width = scene_x + APC_GUI_BUTTON_WIDTH + 20;
