@@ -45,7 +45,7 @@ class MIDIEventLooper;
 #define APC_GUI_BUTTON_WIDTH      32    // Width of side buttons
 #define APC_GUI_BUTTON_HEIGHT     24    // Height of side buttons (increased for better usability)
 #define APC_GUI_SHIFT_BUTTON_SIZE 25    // Size of square shift button
-#define APC_GUI_MARGIN            15    // Margin around the entire control
+#define APC_GUI_MARGIN            20    // Margin around the entire control (increased for better visual breathing room)
 #define APC_GUI_CORNER_RADIUS     3     // Radius for rounded corners
 
 // Color Constants (matching real APC Mini MK2)
