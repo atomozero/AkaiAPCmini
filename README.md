@@ -113,6 +113,9 @@ make examples
 # Run tests
 make test
 
+# Build latency benchmark (Haiku OS only)
+make benchmark
+
 # Clean build artifacts
 make clean
 ```
