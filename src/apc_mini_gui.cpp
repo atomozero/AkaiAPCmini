@@ -1202,20 +1202,29 @@ void BrandedBackgroundView::DrawAKAIBranding(BRect bounds)
 {
     // Draw AKAI logo/text in the top-right area like real hardware
     SetHighColor(APC_GUI_BRAND_COLOR);
-    SetFontSize(14);
+
+    // Use bold font for AKAI branding
+    BFont font;
+    GetFont(&font);
+    font.SetFace(B_BOLD_FACE);
+    SetFont(&font);
+
+    SetFontSize(16);  // Increased from 14 for better visibility
     font_height fh;
     GetFontHeight(&fh);
 
     BString akai_text = "AKAI";
     float text_width = StringWidth(akai_text.String());
-    BPoint akai_pos(bounds.right - text_width - 20, bounds.top + 30);
+    BPoint akai_pos(bounds.right - text_width - 25, bounds.top + 35);
     DrawString(akai_text.String(), akai_pos);
 
     // Add "professional" underneath in smaller text
-    SetFontSize(8);
+    font.SetFace(B_REGULAR_FACE);
+    SetFont(&font);
+    SetFontSize(9);  // Increased from 8 for better readability
     BString pro_text = "professional";
     float pro_width = StringWidth(pro_text.String());
-    BPoint pro_pos(bounds.right - pro_width - 20, akai_pos.y + fh.ascent + fh.descent + 2);
+    BPoint pro_pos(bounds.right - pro_width - 25, akai_pos.y + fh.ascent + fh.descent + 3);
     DrawString(pro_text.String(), pro_pos);
 }
 
