@@ -43,7 +43,7 @@ class MIDIEventLooper;
 #define APC_GUI_FADER_KNOB_WIDTH  28    // Width of fader knob
 #define APC_GUI_FADER_KNOB_HEIGHT 15    // Height of fader knob
 #define APC_GUI_BUTTON_WIDTH      32    // Width of side buttons
-#define APC_GUI_BUTTON_HEIGHT     18    // Height of side buttons
+#define APC_GUI_BUTTON_HEIGHT     24    // Height of side buttons (increased for better usability)
 #define APC_GUI_SHIFT_BUTTON_SIZE 25    // Size of square shift button
 #define APC_GUI_MARGIN            15    // Margin around the entire control
 #define APC_GUI_CORNER_RADIUS     3     // Radius for rounded corners
