@@ -107,6 +107,15 @@ midi_monitor: $(OBJ_DIR)/midi_monitor.o $(OBJ_DIR)/usb_raw_midi.o
 	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) -o $@ $^ $(HAIKU_LIBS)
 	@echo "Built example: midi_monitor"
 
+# Benchmark tool
+BENCHMARK_NAME = latency_benchmark
+.PHONY: benchmark
+benchmark: $(BENCHMARK_NAME)
+
+$(BENCHMARK_NAME): $(OBJ_DIR)/latency_benchmark.o $(OBJ_DIR)/usb_haiku_midi.o
+	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) -o $@ $^ $(HAIKU_LIBS)
+	@echo "Built benchmark tool: $(BENCHMARK_NAME)"
+
 # Testing targets
 .PHONY: test
 test: debug
