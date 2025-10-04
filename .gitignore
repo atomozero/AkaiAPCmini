@@ -1,0 +1,49 @@
+# Build outputs
+build/*.o
+build/apc_mini_test
+build/apc_mini_test_debug
+build/led_patterns
+build/midi_monitor
+build/*.a
+build/*.so
+build/*.hpkg
+
+# Test outputs
+build/tests/*_test
+build/tests/*.o
+
+# IDE files
+*.gproject~
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Package files
+*.zip
+*.tar.gz
+*.tgz
+
+# Claude Code configuration
+.claude/
+
+# Credentials and sensitive data
+.env
+credentials*
+*.key
+*.pem
+*.p12
+
+# User-specific files
+user_config.h
+local_settings.h

@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="2.0">
+    <name>APC Mini Test</name>
+    <description>Comprehensive test application for Akai APC Mini MIDI controller on Haiku OS</description>
+    <version>1.0.0</version>
+    <author>Haiku Community</author>
+    <license>MIT</license>
+
+    <!-- Project settings -->
+    <settings>
+        <build-mode>debug</build-mode>
+        <target-platform>haiku-x86_64</target-platform>
+        <cpp-standard>c++17</cpp-standard>
+        <optimization-level>2</optimization-level>
+        <warning-level>all</warning-level>
+        <treat-warnings-as-errors>false</treat-warnings-as-errors>
+    </settings>
+
+    <!-- Source directories -->
+    <source-paths>
+        <path>../src</path>
+        <path>../examples</path>
+    </source-paths>
+
+    <!-- Include directories -->
+    <include-paths>
+        <path>../src</path>
+        <path>/boot/system/develop/headers</path>
+        <path>/boot/system/develop/headers/be</path>
+        <path>/boot/system/develop/headers/be/midi</path>
+        <path>/boot/system/develop/headers/posix</path>
+    </include-paths>
+
+    <!-- Library paths -->
+    <library-paths>
+        <path>/boot/system/develop/lib</path>
+        <path>/boot/system/lib</path>
+    </library-paths>
+
+    <!-- Libraries to link -->
+    <libraries>
+        <library>be</library>
+        <library>midi</library>
+        <library>root</library>
+        <library>device</library>
+    </libraries>
+
+    <!-- Preprocessor definitions -->
+    <defines>
+        <define name="_HAIKU_BUILD" value="1"/>
+        <define name="USE_USB_RAW" value="1"/>
+        <define name="DEBUG" value="1" condition="debug"/>
+        <define name="NDEBUG" value="1" condition="release"/>
+    </defines>
+
+    <!-- Compiler flags -->
+    <compiler-flags>
+        <flag>-Wall</flag>
+        <flag>-Wextra</flag>
+        <flag>-std=c++17</flag>
+        <flag>-g</flag>
+        <flag>-O0</flag>
+        <flag condition="release">-O3</flag>
+        <flag condition="release">-s</flag>
+    </compiler-flags>
+
+    <!-- Source files -->
+    <sources>
+        <group name="Core">
+            <file>../src/apc_mini_test.cpp</file>
+            <file>../src/usb_raw_midi.cpp</file>
+        </group>
+
+        <group name="Headers">
+            <file>../src/apc_mini_defs.h</file>
+            <file>../src/usb_raw_midi.h</file>
+        </group>
+
+        <group name="Examples">
+            <file>../examples/led_patterns.cpp</file>
+            <file>../examples/midi_monitor.cpp</file>
+        </group>
+
+        <group name="Build System">
+            <file>Makefile</file>
+        </group>
+
+        <group name="Documentation">
+            <file>../docs/README.md</file>
+            <file>../docs/INSTALL.md</file>
+            <file>../docs/TROUBLESHOOTING.md</file>
+        </group>
+
+        <group name="Scripts">
+            <file>../scripts/setup_qemu.sh</file>
+            <file>../scripts/deploy_to_haiku.sh</file>
+            <file>../scripts/test_runner.sh</file>
+        </group>
+    </sources>
+
+    <!-- Build configurations -->
+    <configurations>
+        <configuration name="Debug">
+            <output-directory>.</output-directory>
+            <output-name>apc_mini_test_debug</output-name>
+            <build-command>make debug</build-command>
+            <clean-command>make clean</clean-command>
+            <defines>
+                <define name="DEBUG" value="1"/>
+            </defines>
+            <compiler-flags>
+                <flag>-g</flag>
+                <flag>-O0</flag>
+                <flag>-DDEBUG</flag>
+            </compiler-flags>
+        </configuration>
+
+        <configuration name="Release">
+            <output-directory>.</output-directory>
+            <output-name>apc_mini_test</output-name>
+            <build-command>make release</build-command>
+            <clean-command>make clean</clean-command>
+            <defines>
+                <define name="NDEBUG" value="1"/>
+            </defines>
+            <compiler-flags>
+                <flag>-O3</flag>
+                <flag>-s</flag>
+                <flag>-DNDEBUG</flag>
+            </compiler-flags>
+        </configuration>
+
+        <configuration name="Examples">
+            <output-directory>.</output-directory>
+            <output-name>examples</output-name>
+            <build-command>make examples</build-command>
+            <clean-command>make clean</clean-command>
+        </configuration>
+    </configurations>
+
+    <!-- Run configurations -->
+    <run-configurations>
+        <run-config name="Interactive Test">
+            <executable>./apc_mini_test_debug</executable>
+            <working-directory>.</working-directory>
+            <arguments></arguments>
+            <environment>
+                <variable name="BEOS_ADDON_PATH" value="/boot/system/add-ons:/boot/home/config/add-ons"/>
+            </environment>
+        </run-config>
+
+        <run-config name="Simulation Mode">
+            <executable>./apc_mini_test_debug</executable>
+            <working-directory>.</working-directory>
+            <arguments>--test-mode simulation</arguments>
+        </run-config>
+
+        <run-config name="Stress Test">
+            <executable>./apc_mini_test_debug</executable>
+            <working-directory>.</working-directory>
+            <arguments>--test-mode stress</arguments>
+        </run-config>
+
+        <run-config name="Latency Test">
+            <executable>./apc_mini_test_debug</executable>
+            <working-directory>.</working-directory>
+            <arguments>--test-mode latency</arguments>
+        </run-config>
+
+        <run-config name="LED Patterns Demo">
+            <executable>./led_patterns</executable>
+            <working-directory>.</working-directory>
+            <arguments></arguments>
+        </run-config>
+
+        <run-config name="MIDI Monitor">
+            <executable>./midi_monitor</executable>
+            <working-directory>.</working-directory>
+            <arguments></arguments>
+        </run-config>
+    </run-configurations>
+
+    <!-- Debug configurations -->
+    <debug-configurations>
+        <debug-config name="Debug Main">
+            <debugger>gdb</debugger>
+            <executable>./apc_mini_test_debug</executable>
+            <working-directory>.</working-directory>
+            <arguments></arguments>
+            <break-on-start>false</break-on-start>
+            <breakpoints>
+                <breakpoint file="../src/apc_mini_test.cpp" line="100"/>
+                <breakpoint file="../src/usb_raw_midi.cpp" line="50"/>
+            </breakpoints>
+        </debug-config>
+    </debug-configurations>
+
+    <!-- Build targets -->
+    <targets>
+        <target name="all">
+            <command>make all</command>
+            <description>Build debug version</description>
+        </target>
+
+        <target name="debug">
+            <command>make debug</command>
+            <description>Build debug version with symbols</description>
+        </target>
+
+        <target name="release">
+            <command>make release</command>
+            <description>Build optimized release version</description>
+        </target>
+
+        <target name="examples">
+            <command>make examples</command>
+            <description>Build example utilities</description>
+        </target>
+
+        <target name="test">
+            <command>make test</command>
+            <description>Run basic functionality tests</description>
+        </target>
+
+        <target name="test-stress">
+            <command>make test-stress</command>
+            <description>Run stress tests</description>
+        </target>
+
+        <target name="install">
+            <command>make install</command>
+            <description>Install application</description>
+        </target>
+
+        <target name="package">
+            <command>make package</command>
+            <description>Create Haiku package</description>
+        </target>
+
+        <target name="clean">
+            <command>make clean</command>
+            <description>Clean build artifacts</description>
+        </target>
+
+        <target name="detect-usb">
+            <command>make detect-usb</command>
+            <description>Scan for USB devices</description>
+        </target>
+
+        <target name="detect-midi">
+            <command>make detect-midi</command>
+            <description>Scan for MIDI devices</description>
+        </target>
+    </targets>
+
+    <!-- Tools and utilities -->
+    <tools>
+        <tool name="Format Code">
+            <command>make format</command>
+            <description>Format source code with clang-format</description>
+        </tool>
+
+        <tool name="Static Analysis">
+            <command>make lint</command>
+            <description>Run cppcheck static analysis</description>
+        </tool>
+
+        <tool name="Development Server">
+            <command>make serve</command>
+            <description>Start HTTP server for file transfer</description>
+        </tool>
+    </tools>
+
+    <!-- Project templates and snippets -->
+    <templates>
+        <template name="USB Raw Class">
+            <description>Template for USB Raw device class</description>
+            <file>templates/usb_raw_class.cpp</file>
+        </template>
+
+        <template name="MIDI Callback">
+            <description>Template for MIDI event callback</description>
+            <content><![CDATA[
+void HandleMIDI(uint8_t status, uint8_t data1, uint8_t data2) {
+    uint8_t msg_type = status & 0xF0;
+    uint8_t channel = status & 0x0F;
+
+    switch (msg_type) {
+        case MIDI_NOTE_ON:
+            // Handle note on
+            break;
+        case MIDI_NOTE_OFF:
+            // Handle note off
+            break;
+        case MIDI_CONTROL_CHANGE:
+            // Handle control change
+            break;
+    }
+}
+]]></content>
+        </template>
+    </templates>
+
+    <!-- Project-specific editor settings -->
+    <editor-settings>
+        <indentation>
+            <use-tabs>false</use-tabs>
+            <tab-size>4</tab-size>
+            <indent-size>4</indent-size>
+        </indentation>
+
+        <code-style>
+            <brace-style>allman</brace-style>
+            <line-endings>unix</line-endings>
+            <max-line-length>100</max-line-length>
+        </code-style>
+
+        <syntax-highlighting>
+            <theme>haiku-dark</theme>
+        </syntax-highlighting>
+    </editor-settings>
+
+    <!-- Version control -->
+    <version-control>
+        <type>git</type>
+        <ignore-patterns>
+            <pattern>*.o</pattern>
+            <pattern>*.d</pattern>
+            <pattern>apc_mini_test</pattern>
+            <pattern>apc_mini_test_debug</pattern>
+            <pattern>led_patterns</pattern>
+            <pattern>midi_monitor</pattern>
+            <pattern>*.hpkg</pattern>
+            <pattern>obj/</pattern>
+            <pattern>package_tmp/</pattern>
+        </ignore-patterns>
+    </version-control>
+
+    <!-- External dependencies -->
+    <dependencies>
+        <dependency name="Haiku API">
+            <type>system</type>
+            <version>r1beta5+</version>
+            <description>Haiku operating system APIs</description>
+        </dependency>
+
+        <dependency name="Be API">
+            <type>system</type>
+            <version>r1beta5+</version>
+            <description>BeOS compatibility layer</description>
+        </dependency>
+
+        <dependency name="MIDI API">
+            <type>system</type>
+            <version>r1beta5+</version>
+            <description>Haiku MIDI subsystem</description>
+        </dependency>
+
+        <dependency name="USB Raw">
+            <type>system</type>
+            <version>r1beta5+</version>
+            <description>Haiku USB raw device access</description>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <!-- Documentation and help -->
+    <help>
+        <quick-start>
+            1. Build the project: make debug
+            2. Connect APC Mini via USB
+            3. Run: ./apc_mini_test_debug
+            4. Follow the interactive prompts
+        </quick-start>
+
+        <troubleshooting>
+            - If USB Raw fails, check /dev/bus/usb permissions
+            - If MIDI fails, verify MIDI services are running
+            - For compilation errors, ensure Haiku dev packages are installed
+        </troubleshooting>
+    </help>
+</project>
