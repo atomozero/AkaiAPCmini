@@ -874,20 +874,31 @@ void ControlButton::DrawButtonLabel(BRect rect)
 
     BString label_text;
     float font_size = 8;
+    bool use_bold = false;
 
     switch (button_type) {
         case BUTTON_TRACK:
             label_text << (button_index + 1);
-            font_size = 10;
+            font_size = 11;  // Increased from 10 for better visibility
+            use_bold = true;
             break;
         case BUTTON_SCENE:
             label_text << (button_index + 1);
-            font_size = 10;
+            font_size = 11;  // Increased from 10 for better visibility
+            use_bold = true;
             break;
         case BUTTON_SHIFT:
             label_text = "SHIFT";
             font_size = 7;
             break;
+    }
+
+    // Use bold font for numbered buttons
+    if (use_bold) {
+        BFont font;
+        GetFont(&font);
+        font.SetFace(B_BOLD_FACE);
+        SetFont(&font);
     }
 
     SetFontSize(font_size);
