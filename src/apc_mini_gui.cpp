@@ -483,7 +483,13 @@ void FaderControl::DrawFaderLabel(BRect bounds)
 {
     // Draw fader number at bottom
     SetHighColor(APC_GUI_TEXT_COLOR);
-    SetFontSize(10);
+
+    // Use bold font for better readability
+    BFont font;
+    GetFont(&font);
+    font.SetFace(B_BOLD_FACE);
+    SetFont(&font);
+    SetFontSize(12);  // Increased from 10 for better visibility
 
     BString fader_number;
     if (fader_index < APC_MINI_TRACK_FADER_COUNT) {
