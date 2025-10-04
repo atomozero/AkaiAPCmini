@@ -742,7 +742,7 @@ void APCMiniWindow::SetupLayout()
     button_panel = new ControlButtonView(button_panel_rect);
     background_view->AddChild(button_panel);
 
-    current_y += pad_matrix_height + 22;
+    current_y += pad_matrix_height + 42;
 
     // 4. Create and position faders (below pads, aligned with pad matrix)
     BRect fader_rect(margin, current_y, margin + fader_width - 1, current_y + fader_height - 1);
