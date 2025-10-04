@@ -34,12 +34,12 @@ A comprehensive test suite and diagnostic tool for the **Akai APC Mini MIDI cont
 
 ## Quick Start
 
-### 1. Extract and Build
+### 1. Clone and Build
 ```bash
-# Extract the project
+# Clone the repository
 cd /boot/home/Desktop
-unzip apc_mini_project.zip
-cd apc_mini_project/build
+git clone https://github.com/atomozero/AkaiAPCmini.git
+cd AkaiAPCmini/build
 
 # Build debug version
 make debug

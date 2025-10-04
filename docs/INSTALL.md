@@ -56,13 +56,9 @@ pkgman install gdb binutils
 mkdir -p /boot/home/develop
 cd /boot/home/develop
 
-# Extract source (if from archive)
-unzip apc_mini_project.zip
-cd apc_mini_project
-
-# Or clone from repository
-git clone https://github.com/your-repo/apc-mini-test.git
-cd apc-mini-test
+# Clone from repository
+git clone https://github.com/atomozero/AkaiAPCmini.git
+cd AkaiAPCmini
 ```
 
 #### Step 3: Build Application
@@ -129,7 +125,7 @@ lsusb | grep 09e8
 ### Step 3: File Transfer Setup
 ```bash
 # Method 1: HTTP server on host (port 8080)
-cd apc_mini_project
+cd AkaiAPCmini
 python3 -m http.server 8080
 
 # In Haiku VM:
@@ -368,7 +364,7 @@ rm -rf /boot/home/config/settings/apc_mini_test
 rm -rf /boot/home/Desktop/APC_Mini_Test
 
 # Remove build artifacts
-cd apc_mini_project/build
+cd build
 make distclean
 ```
 

@@ -5,6 +5,7 @@ A comprehensive test suite and diagnostic tool for the **Akai APC Mini MIDI cont
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Haiku%20OS-green.svg)
 ![Language](https://img.shields.io/badge/language-C%2B%2B17-orange.svg)
+![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2025-blueviolet.svg)
 
 ![APC Mini Test Application](img/AkaiAPCmini_0.1.jpg)
 
@@ -42,7 +43,7 @@ A comprehensive test suite and diagnostic tool for the **Akai APC Mini MIDI cont
 
 ### 1. Clone and Build
 ```bash
-git clone https://github.com/YOUR_USERNAME/AkaiAPCmini.git
+git clone https://github.com/atomozero/AkaiAPCmini.git
 cd AkaiAPCmini/build
 
 # Build debug version
@@ -170,13 +171,24 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! This project participates in **Hacktoberfest 2025** - contributions made in October count towards Hacktoberfest!
+
+### How to Contribute
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+### Contribution Ideas
+- Improve USB device detection and error handling
+- Add support for other MIDI controllers
+- Enhance GUI with additional visualizations
+- Improve documentation and examples
+- Add unit tests and integration tests
+- Optimize performance and reduce latency
+- Port to other BeOS-compatible systems
 
 ### Guidelines
 - Follow existing code style (C++17, Allman braces, 4-space indents)

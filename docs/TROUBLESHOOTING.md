@@ -13,7 +13,7 @@ listdev | grep -i usb
 listdev | grep -i midi
 
 # Application diagnostics
-cd apc_mini_project/build
+cd build
 make detect-usb
 make detect-midi
 ./apc_mini_test_debug --version --verbose

@@ -77,7 +77,7 @@
 
 ### **1. Compile-Time Validation**
 ```bash
-cd apc_mini_project/build
+cd build
 make clean && make debug
 # Should compile without warnings
 ```
@@ -102,12 +102,12 @@ g++ -I../src ../src/fader_mapping_test.cpp -o fader_test
 
 ### **Step 1: Backup Current Build**
 ```bash
-cp -r apc_mini_project apc_mini_project_backup_$(date +%Y%m%d)
+cp -r AkaiAPCmini AkaiAPCmini_backup_$(date +%Y%m%d)
 ```
 
 ### **Step 2: Verify Compilation**
 ```bash
-cd apc_mini_project/build
+cd build
 make clean
 make debug 2>&1 | tee build.log
 # Check for any compilation errors
@@ -185,9 +185,9 @@ If issues are discovered during hardware testing:
 ```bash
 # Emergency rollback
 cd ..
-rm -rf apc_mini_project
-mv apc_mini_project_backup_YYYYMMDD apc_mini_project
-cd apc_mini_project/build
+rm -rf AkaiAPCmini
+mv AkaiAPCmini_backup_YYYYMMDD AkaiAPCmini
+cd AkaiAPCmini/build
 make debug
 ```
 
