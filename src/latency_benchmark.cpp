@@ -80,7 +80,7 @@ public:
             // Send note-on
             waiting_for_response = true;
             bigtime_t send_time = system_time();
-            producer->SprayNoteOn(1, PAD_NOTE_TEST, 127);
+            producer->SprayNoteOn(1, PAD_NOTE_TEST, 127, send_time);
 
             // Wait for response (with timeout)
             bigtime_t timeout = send_time + 100000; // 100ms timeout
@@ -101,7 +101,7 @@ public:
             }
 
             // Send note-off to cleanup
-            producer->SprayNoteOff(1, PAD_NOTE_TEST, 0);
+            producer->SprayNoteOff(1, PAD_NOTE_TEST, 0, system_time());
             snooze(10000); // 10ms delay between tests
         }
 
@@ -118,6 +118,7 @@ static volatile bool usb_waiting_for_response = false;
 static volatile bigtime_t usb_response_time = 0;
 
 void USBLatencyCallback(uint8_t status, uint8_t data1, uint8_t data2) {
+    (void)data2;  // Unused parameter
     if (usb_waiting_for_response && status == 0x90 && data1 == PAD_NOTE_TEST) {
         usb_response_time = system_time();
         usb_waiting_for_response = false;
