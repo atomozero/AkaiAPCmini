@@ -717,8 +717,8 @@ void APCMiniWindow::SetupLayout()
 
     // Calculate fader width exactly as CalculateFaderFrame does:
     // 8 track faders: 8 * (width + PAD_SPACING)
-    // Master fader: + 12 (spacing) + width
-    float fader_width = 8 * (APC_GUI_FADER_WIDTH + APC_GUI_PAD_SPACING) + 12 + APC_GUI_FADER_WIDTH;
+    // Master fader: + 4*PAD_SPACING (spacing) + width
+    float fader_width = 8 * (APC_GUI_FADER_WIDTH + APC_GUI_PAD_SPACING) + (4 * APC_GUI_PAD_SPACING) + APC_GUI_FADER_WIDTH;
     float fader_height = APC_GUI_FADER_HEIGHT + 40;
 
     // 1. Create and position track buttons (aligned with pad columns)
@@ -752,7 +752,7 @@ void APCMiniWindow::SetupLayout()
     current_y += fader_height + 15;
 
     // 5. Create and position status bar at the bottom with background panel
-    BRect status_panel_rect(margin - 5, current_y - 5, margin + fader_width + 4, current_y + 30);
+    BRect status_panel_rect(margin, current_y - 5, margin + fader_width - 1, current_y + 30);
     BBox* status_panel = new BBox(status_panel_rect, "status_panel");
     status_panel->SetViewColor(rgb_color{45, 44, 43, 255});  // Slightly lighter warm background
     status_panel->SetBorder(B_PLAIN_BORDER);

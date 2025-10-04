@@ -489,7 +489,7 @@ void FaderControl::DrawFaderLabel(BRect bounds)
     GetFont(&font);
     font.SetFace(B_BOLD_FACE);
     SetFont(&font);
-    SetFontSize(12);  // Increased from 10 for better visibility
+    SetFontSize(12);
 
     BString fader_number;
     if (fader_index < APC_MINI_TRACK_FADER_COUNT) {
@@ -498,8 +498,18 @@ void FaderControl::DrawFaderLabel(BRect bounds)
         fader_number = "M";  // Master fader
     }
 
+    // Get font metrics for proper vertical positioning
+    font_height fh;
+    GetFontHeight(&fh);
+
+    // Center horizontally on the fader track
+    BRect track_rect = GetSliderRect();
     float string_width = StringWidth(fader_number.String());
-    BPoint label_point(bounds.Width() / 2 - string_width / 2, bounds.bottom - 5);
+    float center_x = track_rect.left + track_rect.Width() / 2;
+
+    // Position label with proper font metrics
+    BPoint label_point(center_x - string_width / 2,
+                      bounds.bottom - fh.descent - 3);
     DrawString(fader_number.String(), label_point);
 }
 
@@ -571,7 +581,7 @@ BRect FaderControl::GetSliderRect()
     float center_x = bounds.Width() / 2;
 
     return BRect(center_x - track_width / 2, 15,
-                 center_x + track_width / 2, bounds.bottom - 50);
+                 center_x + track_width / 2, bounds.bottom - 30);
 }
 
 BRect FaderControl::GetKnobRect()
@@ -723,8 +733,8 @@ BRect FaderView::CalculateFaderFrame(uint8_t fader_index, bool is_master)
     y = 0;
 
     if (is_master) {
-        // Master fader on the right with distinct spacing
-        x = APC_MINI_TRACK_FADER_COUNT * (width + APC_GUI_PAD_SPACING) + 12;
+        // Master fader on the right with distinct spacing (4x pad spacing for consistency)
+        x = APC_MINI_TRACK_FADER_COUNT * (width + APC_GUI_PAD_SPACING) + (4 * APC_GUI_PAD_SPACING);
     } else {
         x = fader_index * (width + APC_GUI_PAD_SPACING);
     }
