@@ -34,14 +34,16 @@ HAIKU_LIBS = -lbe -lmidi2 -lmidi -lroot -ldevice
 # Source files
 VIRTUAL_MIDI_SRC = $(SRC_DIR)/virtual_midi_benchmark.cpp
 MIDIKIT_DRIVER_SRC = $(SRC_DIR)/midikit_driver_test.cpp
+RAW_DRIVER_SRC = $(SRC_DIR)/raw_driver_benchmark.cpp
 
 # Binary targets
 VIRTUAL_MIDI_BIN = virtual_midi_benchmark
 MIDIKIT_DRIVER_BIN = midikit_driver_test
+RAW_DRIVER_BIN = raw_driver_benchmark
 
 # Default target - build all benchmarks
 .PHONY: all
-all: $(VIRTUAL_MIDI_BIN) $(MIDIKIT_DRIVER_BIN)
+all: $(VIRTUAL_MIDI_BIN) $(MIDIKIT_DRIVER_BIN) $(RAW_DRIVER_BIN)
 	@echo ""
 	@echo "=== All benchmarks built successfully ==="
 	@echo "Run './run_benchmarks.sh' to execute all tests"
@@ -58,12 +60,21 @@ $(MIDIKIT_DRIVER_BIN): $(MIDIKIT_DRIVER_SRC)
 	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) $(CPPFLAGS) -o $@ $< $(HAIKU_LIBS)
 	@echo "  -> Built: $(MIDIKIT_DRIVER_BIN)"
 
+# Raw driver benchmark (direct /dev/midi/usb access, no libmidi)
+$(RAW_DRIVER_BIN): $(RAW_DRIVER_SRC)
+	@echo "Building Raw Driver Benchmark..."
+	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) $(CPPFLAGS) -o $@ $< $(HAIKU_LIBS)
+	@echo "  -> Built: $(RAW_DRIVER_BIN)"
+
 # Individual build targets
 .PHONY: virtual
 virtual: $(VIRTUAL_MIDI_BIN)
 
 .PHONY: driver
 driver: $(MIDIKIT_DRIVER_BIN)
+
+.PHONY: raw
+raw: $(RAW_DRIVER_BIN)
 
 # Run benchmarks
 .PHONY: run-virtual
@@ -76,6 +87,11 @@ run-driver: $(MIDIKIT_DRIVER_BIN)
 	@echo "=== Running MidiKit Driver Test ==="
 	@./$(MIDIKIT_DRIVER_BIN) | tee $(RESULTS_DIR)/midikit_driver_$(shell date +%Y%m%d_%H%M%S).txt
 
+.PHONY: run-raw
+run-raw: $(RAW_DRIVER_BIN)
+	@echo "=== Running Raw Driver Benchmark ==="
+	@./$(RAW_DRIVER_BIN) | tee $(RESULTS_DIR)/raw_driver_$(shell date +%Y%m%d_%H%M%S).txt
+
 .PHONY: run-all
 run-all: all
 	@echo "=== Running All Benchmarks ==="
@@ -85,7 +101,7 @@ run-all: all
 .PHONY: clean
 clean:
 	@echo "Cleaning benchmark binaries..."
-	@rm -f $(VIRTUAL_MIDI_BIN) $(MIDIKIT_DRIVER_BIN)
+	@rm -f $(VIRTUAL_MIDI_BIN) $(MIDIKIT_DRIVER_BIN) $(RAW_DRIVER_BIN)
 	@echo "Clean complete"
 
 .PHONY: clean-results
@@ -108,15 +124,18 @@ help:
 	@echo "  make              - Build all benchmarks"
 	@echo "  make virtual      - Build virtual MIDI benchmark only"
 	@echo "  make driver       - Build MidiKit driver test only"
+	@echo "  make raw          - Build raw driver benchmark only"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make run-virtual  - Run virtual MIDI benchmark"
 	@echo "  make run-driver   - Run MidiKit driver test (requires hardware)"
+	@echo "  make run-raw      - Run raw driver benchmark (requires hardware)"
 	@echo "  make run-all      - Run all benchmarks and save results"
 	@echo ""
 	@echo "Benchmarks:"
 	@echo "  virtual_midi_benchmark  - Tests pure MidiKit routing (no hardware)"
 	@echo "  midikit_driver_test     - Tests midi_usb driver with APC Mini"
+	@echo "  raw_driver_benchmark    - Direct /dev/midi/usb access (no libmidi)"
 	@echo ""
 	@echo "Clean targets:"
 	@echo "  make clean        - Remove binaries"
