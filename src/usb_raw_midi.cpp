@@ -385,17 +385,17 @@ void USBRawMIDI::ReaderThreadLoop()
         cmd.transfer.endpoint = endpoint_in;
         cmd.transfer.data = &packet;
         cmd.transfer.length = sizeof(packet);
-        cmd.transfer.timeout = 100000; // 100ms timeout in microseconds
+        cmd.transfer.timeout = 10000; // 10ms timeout for low latency (was 100ms)
 
         int result = ioctl(device_fd, B_USB_RAW_COMMAND_BULK_TRANSFER, &cmd, sizeof(cmd));
 
         if (result < 0) {
             if (errno == ETIMEDOUT) {
-                continue; // Timeout is normal, just retry
+                continue; // Timeout is normal, just retry immediately
             }
             printf("USB read error: %s\n", strerror(errno));
             stats.error_count++;
-            snooze(10000); // Wait 10ms before retry
+            snooze(1000); // Wait only 1ms before retry (was 10ms)
             continue;
         }
 
