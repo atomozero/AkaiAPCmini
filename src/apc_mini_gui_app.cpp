@@ -12,7 +12,7 @@
 
 APCMiniWindow::APCMiniWindow()
     : BWindow(BRect(100, 100, 800, 600), "APC Mini MK2 Controller",
-              B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS | B_NOT_ZOOMABLE)
+              B_TITLED_WINDOW, B_NOT_ZOOMABLE)
     , app(nullptr)
     , pad_matrix(nullptr)
     , fader_panel(nullptr)
