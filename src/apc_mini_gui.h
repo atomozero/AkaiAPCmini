@@ -115,6 +115,8 @@ class FaderView;
 class ControlButtonView;
 class DebugLogWindow;
 class BrandedBackgroundView;
+class ConnectionStatusPanel;
+class PerformanceIndicatorPanel;
 
 // RGB Pad class
 class RGBPad : public BView {
@@ -326,6 +328,8 @@ public:
     BStringView* status_view;
     DebugLogWindow* debug_window;
     BrandedBackgroundView* background_view;  // Background view with AKAI branding
+    ConnectionStatusPanel* connection_panel;  // Shows USB Raw vs MIDI fallback status
+    PerformanceIndicatorPanel* performance_panel;  // Shows latency and message statistics
     // BBox* main_container; // Removed - controls added directly to window
 
     // Individual track buttons (not part of button_panel)
@@ -442,6 +446,73 @@ private:
     uint8_t ScanSingleFader(uint8_t cc_number); // Scan individual fader position
     rgb_color MIDIVelocityToRGB(uint8_t velocity);
     APCMiniMK2RGB VelocityToMK2RGB(uint8_t velocity);
+};
+
+// Connection Status Panel - Shows USB Raw vs MIDI fallback status
+class ConnectionStatusPanel : public BView {
+public:
+    ConnectionStatusPanel(BRect frame);
+    virtual ~ConnectionStatusPanel();
+
+    virtual void Draw(BRect updateRect) override;
+    virtual void AttachedToWindow() override;
+    virtual void Pulse() override;
+
+    void UpdateStatus(bool usb_connected, bool midi_fallback);
+    void SetDeviceInfo(const char* name, uint16_t vid, uint16_t pid);
+
+private:
+    BStringView* connection_label;
+    BStringView* mode_label;
+    BStringView* device_label;
+    BStringView* performance_label;
+
+    bool is_usb_connected;
+    bool is_midi_fallback;
+    BString device_name;
+    uint16_t vendor_id;
+    uint16_t product_id;
+
+    void UpdateLabels();
+    rgb_color GetStatusColor();
+};
+
+// Performance Indicator Panel - Shows latency and message stats
+class PerformanceIndicatorPanel : public BView {
+public:
+    PerformanceIndicatorPanel(BRect frame);
+    virtual ~PerformanceIndicatorPanel();
+
+    virtual void Draw(BRect updateRect) override;
+    virtual void AttachedToWindow() override;
+    virtual void Pulse() override;
+
+    void RecordLatency(bigtime_t latency_us);
+    void IncrementMessageCount(bool sent);
+    void ResetStatistics();
+
+private:
+    BStringView* latency_label;
+    BStringView* messages_label;
+    BStringView* throughput_label;
+
+    // Performance statistics
+    bigtime_t min_latency_us;
+    bigtime_t max_latency_us;
+    bigtime_t total_latency_us;
+    uint32_t latency_samples;
+    uint32_t messages_sent;
+    uint32_t messages_received;
+    bigtime_t last_update_time;
+
+    // Display values
+    float current_latency_us;
+    float avg_latency_us;
+    float current_throughput;
+
+    void UpdateLabels();
+    void CalculateStatistics();
+    rgb_color GetLatencyColor(float latency);
 };
 
 // Debug Log Window for raw MIDI messages

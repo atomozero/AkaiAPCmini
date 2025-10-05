@@ -31,6 +31,7 @@ SOURCES = $(SRC_DIR)/apc_mini_test.cpp \
 GUI_SOURCES = $(SRC_DIR)/apc_mini_gui.cpp \
               $(SRC_DIR)/apc_mini_gui_app.cpp \
               $(SRC_DIR)/apc_mini_gui_main.cpp \
+              $(SRC_DIR)/apc_mini_gui_panels.cpp \
               $(SRC_DIR)/apc_mini_debug_log.cpp \
               $(SRC_DIR)/usb_haiku_midi.cpp \
               $(SRC_DIR)/midi_message_queue.cpp \
