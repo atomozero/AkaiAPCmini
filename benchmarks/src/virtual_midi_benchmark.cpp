@@ -60,6 +60,21 @@ struct BenchmarkStats {
     // Advanced statistics
     std::vector<bigtime_t> latency_samples;
 
+    // Constructor
+    BenchmarkStats() { Reset(); }
+
+    // Proper reset method (C++ safe)
+    void Reset() {
+        messages_sent = 0;
+        messages_received = 0;
+        min_latency_us = UINT64_MAX;
+        max_latency_us = 0;
+        total_latency_us = 0;
+        lost_messages = 0;
+        total_duration_us = 0;
+        latency_samples.clear();
+    }
+
     void RecordLatency(bigtime_t latency) {
         latency_samples.push_back(latency);
         total_latency_us += latency;
@@ -195,8 +210,7 @@ public:
         , messages_received(0)
         , last_receive_time(0)
     {
-        memset(&stats, 0, sizeof(stats));
-        stats.min_latency_us = UINT64_MAX;
+        stats.Reset();
     }
 
     void NoteOn(uchar channel, uchar note, uchar velocity, bigtime_t time) override {
@@ -231,8 +245,7 @@ public:
     }
 
     void ResetStats() {
-        memset(&stats, 0, sizeof(stats));
-        stats.min_latency_us = UINT64_MAX;
+        stats.Reset();
         messages_received = 0;
     }
 
@@ -395,8 +408,7 @@ void VirtualMIDIBenchmark::WarmUp()
 
 void VirtualMIDIBenchmark::ResetStats()
 {
-    memset(&overall_stats, 0, sizeof(overall_stats));
-    overall_stats.min_latency_us = UINT64_MAX;
+    overall_stats.Reset();
 }
 
 void VirtualMIDIBenchmark::RunLatencyTest()
