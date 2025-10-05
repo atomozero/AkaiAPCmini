@@ -37,8 +37,6 @@ public:
         : BMidiLocalConsumer("Virtual Benchmark Consumer")
         , messages_received(0)
         , last_receive_time(0)
-        , expecting_note(0)
-        , expecting_velocity(0)
     {
         memset(&stats, 0, sizeof(stats));
         stats.min_latency_us = UINT64_MAX;

@@ -5,11 +5,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#include <dirent.h>
 #include <OS.h>
 #include <String.h>
 #include <midi2/MidiRoster.h>
 #include <midi2/MidiProducer.h>
 #include <midi2/MidiConsumer.h>
+#include <midi/MidiPort.h>
 #include "apc_mini_defs.h"
 
 // Test configuration
@@ -19,7 +24,12 @@
 
 class MidiKitDriverTest {
 public:
-    MidiKitDriverTest() : local_producer(nullptr), apc_consumer(nullptr), start_time(0) {}
+    MidiKitDriverTest()
+        : local_producer(nullptr)
+        , apc_consumer(nullptr)
+        , midi_port(nullptr)
+        , use_direct_port(false)
+        , start_time(0) {}
 
     bool Initialize();
     void Shutdown();
@@ -29,6 +39,8 @@ public:
 private:
     BMidiLocalProducer* local_producer;
     BMidiConsumer* apc_consumer;
+    BMidiPort* midi_port;
+    bool use_direct_port;
     bigtime_t start_time;
 
     struct TestStats {
@@ -41,6 +53,7 @@ private:
     } stats;
 
     bool FindAPCMini();
+    bool TryDirectPortAccess();
     void SendBatchLEDCommands(int batch_num);
     void ResetStats();
 };
@@ -54,28 +67,43 @@ bool MidiKitDriverTest::Initialize()
     printf("Method: Batch LED writes using ONLY BMidiProducer API\n\n");
 
     if (!FindAPCMini()) {
-        printf("ERROR: APC Mini not found via MidiKit\n");
-        return false;
+        printf("MidiKit route failed, trying direct port access...\n\n");
+        if (!TryDirectPortAccess()) {
+            printf("ERROR: APC Mini not found via any method\n");
+            return false;
+        }
+        printf("Successfully connected to APC Mini via direct port\n");
+        use_direct_port = true;
+    } else {
+        printf("Successfully connected to APC Mini via MidiKit\n");
+        use_direct_port = false;
     }
 
-    printf("Successfully connected to APC Mini via MidiKit\n");
     return true;
 }
 
 void MidiKitDriverTest::Shutdown()
 {
-    if (local_producer && apc_consumer) {
-        local_producer->Disconnect(apc_consumer);
-    }
+    if (use_direct_port) {
+        if (midi_port) {
+            midi_port->Close();
+            delete midi_port;
+            midi_port = nullptr;
+        }
+    } else {
+        if (local_producer && apc_consumer) {
+            local_producer->Disconnect(apc_consumer);
+        }
 
-    if (local_producer) {
-        local_producer->Release();
-        local_producer = nullptr;
-    }
+        if (local_producer) {
+            local_producer->Release();
+            local_producer = nullptr;
+        }
 
-    if (apc_consumer) {
-        apc_consumer->Release();
-        apc_consumer = nullptr;
+        if (apc_consumer) {
+            apc_consumer->Release();
+            apc_consumer = nullptr;
+        }
     }
 }
 
@@ -101,11 +129,25 @@ bool MidiKitDriverTest::FindAPCMini()
     int32 id = 0;
     BMidiEndpoint* endpoint;
     bool found_apc = false;
+    int endpoint_count = 0;
+
+    printf("Scanning for MIDI endpoints...\n");
 
     while ((endpoint = roster->NextEndpoint(&id)) != nullptr) {
         const char* endpoint_name = endpoint->Name();
+        endpoint_count++;
 
-        printf("Found MIDI endpoint: %s (ID: %d)\n", endpoint_name, (int)id);
+        printf("Found MIDI endpoint: %s (ID: %d) ", endpoint_name, (int)id);
+
+        // Show endpoint type
+        if (endpoint->IsProducer() && endpoint->IsConsumer()) {
+            printf("[Bidirectional]");
+        } else if (endpoint->IsProducer()) {
+            printf("[Producer]");
+        } else if (endpoint->IsConsumer()) {
+            printf("[Consumer]");
+        }
+        printf("\n");
 
         // Look for APC Mini (case insensitive check)
         BString name(endpoint_name);
@@ -127,14 +169,58 @@ bool MidiKitDriverTest::FindAPCMini()
         endpoint->Release();
     }
 
+    printf("\nTotal MIDI endpoints found: %d\n", endpoint_count);
+
     if (!found_apc) {
-        printf("ERROR: APC Mini consumer not found\n");
-        local_producer->Release();
-        local_producer = nullptr;
+        printf("ERROR: APC Mini consumer not found in MidiRoster\n");
+        if (local_producer) {
+            local_producer->Release();
+            local_producer = nullptr;
+        }
         return false;
     }
 
     return true;
+}
+
+bool MidiKitDriverTest::TryDirectPortAccess()
+{
+    printf("Trying direct /dev/midi/usb access...\n");
+
+    // Scan /dev/midi/usb/ directory
+    DIR* dir = opendir("/dev/midi/usb");
+    if (!dir) {
+        printf("ERROR: Cannot open /dev/midi/usb directory\n");
+        return false;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        char device_path[256];
+        snprintf(device_path, sizeof(device_path), "/dev/midi/usb/%s", entry->d_name);
+
+        printf("Trying device: %s\n", device_path);
+
+        // Try to open with BMidiPort
+        midi_port = new BMidiPort();
+        if (midi_port->Open(device_path) == B_OK) {
+            printf("  -> Successfully opened MIDI port\n");
+            closedir(dir);
+            return true;
+        }
+
+        delete midi_port;
+        midi_port = nullptr;
+    }
+
+    closedir(dir);
+    printf("ERROR: No accessible MIDI devices in /dev/midi/usb/\n");
+    return false;
 }
 
 void MidiKitDriverTest::SendBatchLEDCommands(int batch_num)
@@ -154,8 +240,14 @@ void MidiKitDriverTest::SendBatchLEDCommands(int batch_num)
     for (uint8_t pad = 0; pad < APC_MINI_PAD_COUNT; pad++) {
         uint8_t note = APC_MINI_PAD_NOTE_START + pad;
 
-        // Use BMidiLocalProducer::SprayNoteOn (pure MidiKit API)
-        local_producer->SprayNoteOn(APC_MINI_MIDI_CHANNEL, note, color, system_time());
+        if (use_direct_port) {
+            // Direct port access using BMidiPort
+            // BMidiPort uses semantic methods (NoteOn, ControlChange, etc.)
+            midi_port->NoteOn(APC_MINI_MIDI_CHANNEL, note, color, B_NOW);
+        } else {
+            // Use BMidiLocalProducer::SprayNoteOn (MIDI Kit 2 routing)
+            local_producer->SprayNoteOn(APC_MINI_MIDI_CHANNEL, note, color, system_time());
+        }
         stats.messages_sent++;
     }
 

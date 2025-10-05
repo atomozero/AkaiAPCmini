@@ -46,6 +46,10 @@ make debug
 
 # Or build release version
 make release
+
+# Optional: Build performance benchmarks (separate project)
+cd ../benchmarks
+make
 ```
 
 ### 2. Connect Hardware
@@ -246,6 +250,10 @@ make examples
 
 # Clean build artifacts
 make clean
+
+# Build performance benchmarks (in benchmarks/ directory)
+cd ../benchmarks
+make
 ```
 
 ### IDE Integration
@@ -300,6 +308,15 @@ MIT License - See project files for full license text.
 2. **Testing**: Test on real hardware when possible
 3. **Documentation**: Update docs for new features
 4. **Compatibility**: Maintain Haiku R1/beta5+ compatibility
+
+## Performance Benchmarks
+
+The project includes a separate benchmark suite in `benchmarks/` for testing MIDI subsystem performance:
+
+- **Virtual MIDI Benchmark**: Tests pure MidiKit routing overhead (no hardware required)
+- **MidiKit Driver Test**: Tests hardware driver blocking behavior (requires APC Mini)
+
+See [benchmarks/README.md](../benchmarks/README.md) for details and usage.
 
 ## Support
 

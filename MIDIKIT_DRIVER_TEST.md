@@ -85,14 +85,17 @@ Test whether the blocking behavior during batch LED writes occurs in:
 
 ## Building and Running
 
+**Note**: This test is now part of the independent benchmark suite.
+
 ### Build on Haiku
 ```bash
-cd build
-make test-driver
+cd benchmarks
+make driver
 ```
 
 ### Run Test
 ```bash
+cd benchmarks
 ./midikit_driver_test
 ```
 
@@ -238,9 +241,12 @@ Run both tests to isolate the problem:
 
 ## Test Code Location
 
-- **Source**: `src/midikit_driver_test.cpp`
-- **Makefile target**: `make test-driver`
-- **Binary**: `build/midikit_driver_test`
+**Note**: This test is part of the separate benchmark suite.
+
+- **Source**: `benchmarks/src/midikit_driver_test.cpp`
+- **Makefile target**: `cd benchmarks && make driver`
+- **Binary**: `benchmarks/midikit_driver_test`
+- **Documentation**: See `benchmarks/README.md` for full details
 
 ## Author Notes
 

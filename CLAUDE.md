@@ -71,6 +71,11 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 - **docs/TROUBLESHOOTING.md**: Common issues and solutions
 - **FADER_MAPPING_MIGRATION.md**: Critical fix documentation for fader CC mapping
 
+### Benchmarks (Separate Project)
+- **benchmarks/**: Independent performance benchmark suite
+- **benchmarks/README.md**: Benchmark documentation and usage
+- **benchmarks/RESULTS.md**: Performance analysis and findings
+
 ### Scripts
 - **scripts/test_runner.sh**: Automated testing framework
 - **scripts/deploy_to_haiku.sh**: Deployment automation for Haiku VM
@@ -99,8 +104,14 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 ### Build Targets
 - **apc_mini_test_debug**: Debug version with full symbols
 - **apc_mini_test**: Optimized release version
+- **apc_mini_gui**: GUI version with visual feedback
 - **led_patterns**: LED demonstration utility
 - **midi_monitor**: MIDI message monitoring tool
+
+### Benchmark Targets (Separate Project in benchmarks/)
+- **virtual_midi_benchmark**: Pure MidiKit routing performance test
+- **midikit_driver_test**: Hardware driver blocking detection test
+- See `benchmarks/README.md` for details
 
 ## Common Development Tasks
 

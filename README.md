@@ -51,6 +51,10 @@ make debug
 
 # Or build release version
 make release
+
+# Optional: Build benchmarks (separate project)
+cd ../benchmarks
+make
 ```
 
 ### 2. Connect Hardware
@@ -81,6 +85,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[INSTALL.md](docs/INSTALL.md)**: Installation instructions
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: Common issues and solutions
 - **[FADER_MAPPING_MIGRATION.md](FADER_MAPPING_MIGRATION.md)**: Fader mapping details
+- **[benchmarks/README.md](benchmarks/README.md)**: Performance benchmark suite (separate project)
 
 ## Interactive Commands
 
@@ -113,9 +118,6 @@ make examples
 # Run tests
 make test
 
-# Build latency benchmark (Haiku OS only)
-make benchmark
-
 # Clean build artifacts
 make clean
 ```
@@ -129,6 +131,10 @@ make clean
 ./scripts/test_runner.sh unit
 ./scripts/test_runner.sh integration
 ./scripts/test_runner.sh stress
+
+# Performance benchmarks (separate project)
+cd benchmarks
+make run-all
 ```
 
 ### Code Quality
