@@ -14,9 +14,9 @@
 #include "apc_mini_defs.h"
 
 // Benchmark configuration
-#define BENCHMARK_ITERATIONS 100
-#define WARMUP_ITERATIONS 10
-#define PAD_NOTE_TEST 0x00  // Top-left pad
+#define BENCHMARK_ITERATIONS 20  // Reduced from 100 for manual testing
+#define WARMUP_ITERATIONS 3      // Reduced from 10 for manual testing
+#define PAD_NOTE_TEST 0x38       // Top-left pad (row 7, col 0 = 7*8+0 = 56 = 0x38)
 
 // Statistics structure
 struct BenchmarkStats {
@@ -102,73 +102,122 @@ public:
 bool RunMIDILatencyTest(BMidiProducer* apc_producer, BMidiConsumer* apc_consumer, BenchmarkStats& stats) {
     if (!apc_producer || !apc_consumer) return false;
 
-    // Create local consumer to receive responses
-    MIDILatencyConsumer local_consumer;
-    if (local_consumer.Register() != B_OK) {
+    // Create local consumer to receive responses (must use new, not stack allocation)
+    MIDILatencyConsumer* local_consumer = new MIDILatencyConsumer();
+    if (local_consumer->Register() != B_OK) {
         printf("ERROR: Failed to register consumer\n");
+        local_consumer->Release();
         return false;
     }
 
-    // Create local producer to send commands
-    MIDILatencyProducer local_producer;
-    if (local_producer.Register() != B_OK) {
+    // Create local producer to send commands (must use new, not stack allocation)
+    MIDILatencyProducer* local_producer = new MIDILatencyProducer();
+    if (local_producer->Register() != B_OK) {
         printf("ERROR: Failed to register producer\n");
-        local_consumer.Unregister();
+        local_consumer->Release();
+        local_producer->Release();
         return false;
     }
 
     // Connect: APC Producer -> Our Consumer (to receive responses)
-    if (apc_producer->Connect(&local_consumer) != B_OK) {
+    if (apc_producer->Connect(local_consumer) != B_OK) {
         printf("ERROR: Failed to connect APC producer to consumer\n");
-        local_producer.Unregister();
-        local_consumer.Unregister();
+        local_producer->Release();
+        local_consumer->Release();
         return false;
     }
 
     // Connect: Our Producer -> APC Consumer (to send commands)
-    if (local_producer.Connect(apc_consumer) != B_OK) {
+    if (local_producer->Connect(apc_consumer) != B_OK) {
         printf("ERROR: Failed to connect producer to APC consumer\n");
-        apc_producer->Disconnect(&local_consumer);
-        local_producer.Unregister();
-        local_consumer.Unregister();
+        apc_producer->Disconnect(local_consumer);
+        local_producer->Release();
+        local_consumer->Release();
         return false;
     }
 
+    printf("\n🎹 Testing MIDI API latency...\n");
+    printf("   Please press the TOP-LEFT pad when it lights up\n");
+    printf("   Press it as quickly as possible after it lights up\n\n");
+
+    printf("   Setting up visual grid...\n");
+
+    // Wake up the device by sending a few dummy LED commands first
+    printf("   Waking up MIDI connection...\n");
+    for (int i = 0; i < 5; i++) {
+        local_producer->SprayNoteOn(0, 0, 0, system_time());
+        snooze(20000); // 20ms between wake-up commands
+    }
+
+    // Turn all other pads RED to highlight the yellow one
+    // Add delay between each LED to avoid USB overflow
+    for (uint8_t pad = 0; pad < 64; pad++) {
+        if (pad != PAD_NOTE_TEST) {
+            local_producer->SprayNoteOn(0, pad, 5, system_time());  // Red on MK2
+            snooze(10000); // 10ms delay between each LED (increased from 5ms)
+        }
+    }
+    printf("   Ready! Watch for the yellow LED.\n\n");
+    snooze(500000); // 500ms to see the grid
+
     // Run the test
     for (int i = 0; i < WARMUP_ITERATIONS + BENCHMARK_ITERATIONS; i++) {
-        // Send note-on
-        local_consumer.StartWaiting();
-        bigtime_t send_time = system_time();
-        local_producer.SprayNoteOn(1, PAD_NOTE_TEST, 127, send_time);
+        // Light up the pad YELLOW to indicate which one to press
+        // MK2 uses velocity 13 for yellow
+        local_producer->SprayNoteOn(0, PAD_NOTE_TEST, 13, system_time());
+        snooze(50000); // 50ms to see the LED
 
-        // Wait for response (with timeout)
-        bigtime_t timeout = send_time + 100000; // 100ms timeout
-        while (local_consumer.IsWaiting() && system_time() < timeout) {
-            snooze(100); // 0.1ms polling interval
+        // Start waiting for user response
+        local_consumer->StartWaiting();
+        bigtime_t send_time = system_time();
+
+        // Wait for user to press the pad (with timeout)
+        bigtime_t timeout = send_time + 2000000; // 2 second timeout for user input
+        while (local_consumer->IsWaiting() && system_time() < timeout) {
+            snooze(1000); // 1ms polling interval
         }
 
-        if (!local_consumer.IsWaiting()) {
-            bigtime_t latency = local_consumer.GetResponseTime() - send_time;
-            // Only record after warmup
+        if (!local_consumer->IsWaiting()) {
+            bigtime_t latency = local_consumer->GetResponseTime() - send_time;
+            // Always show feedback
             if (i >= WARMUP_ITERATIONS) {
                 stats.RecordMeasurement(latency);
+                printf("   ✓ Measurement %d/%d: %.2f ms\n",
+                       i - WARMUP_ITERATIONS + 1, BENCHMARK_ITERATIONS, latency / 1000.0);
+            } else {
+                printf("   Warmup %d/%d: %.2f ms\n", i + 1, WARMUP_ITERATIONS, latency / 1000.0);
             }
+            // Brief flash to confirm
+            local_producer->SprayNoteOn(0, PAD_NOTE_TEST, 15, system_time());
+            snooze(100000); // 100ms flash
         } else {
             if (i >= WARMUP_ITERATIONS) {
                 stats.failure_count++;
+                printf("   ✗ Timeout %d/%d - no response\n", i - WARMUP_ITERATIONS + 1, BENCHMARK_ITERATIONS);
+            } else {
+                printf("   ✗ Warmup timeout %d/%d\n", i + 1, WARMUP_ITERATIONS);
             }
         }
 
-        // Send note-off to cleanup
-        local_producer.SprayNoteOff(1, PAD_NOTE_TEST, 0, system_time());
-        snooze(10000); // 10ms delay between tests
+        // Turn off LED
+        local_producer->SprayNoteOff(0, PAD_NOTE_TEST, 0, system_time());
+        snooze(500000); // 500ms delay between tests for user to react
     }
 
-    // Cleanup
-    apc_producer->Disconnect(&local_consumer);
-    local_producer.Disconnect(apc_consumer);
-    local_producer.Unregister();
-    local_consumer.Unregister();
+    // Turn off all LEDs at the end
+    printf("\n   Turning off LEDs...\n");
+    for (uint8_t pad = 0; pad < 64; pad++) {
+        local_producer->SprayNoteOff(0, pad, 0, system_time());
+        snooze(5000); // 5ms delay between each LED
+    }
+
+    // Cleanup - disconnect and release endpoints
+    apc_producer->Disconnect(local_consumer);
+    local_producer->Disconnect(apc_consumer);
+
+    // Use Release() instead of delete or Unregister() - Haiku requirement
+    local_producer->Release();
+    local_consumer->Release();
 
     return stats.success_count > 0;
 }
@@ -194,40 +243,84 @@ bool RunUSBRawLatencyTest(USBRawMIDI* usb, BenchmarkStats& stats) {
     // Set callback for receiving MIDI
     usb->SetMIDICallback(USBLatencyCallback);
 
+    printf("\n🎹 Testing USB Raw latency...\n");
+    printf("   Please press the TOP-LEFT pad when it lights up\n");
+    printf("   Press it as quickly as possible after it lights up\n\n");
+
+    printf("   Setting up visual grid...\n");
+
+    // Pause reader thread to avoid USB conflicts
+    usb->PauseReader();
+
+    // Send Introduction Message (required by APC Mini MK2 protocol)
+    // Must be sent while reader is paused to avoid deadlock
+    usb->SendIntroductionMessage();
+
+    // Turn all other pads RED to highlight the green one
+    for (uint8_t pad = 0; pad < 64; pad++) {
+        if (pad != PAD_NOTE_TEST) {
+            APCMiniError result = usb->SetPadColor(pad, static_cast<APCMiniLEDColor>(5));  // Red on MK2
+            if (result != APC_SUCCESS) {
+                printf("   Warning: Failed to set LED %d\n", pad);
+            }
+        }
+    }
+
+    // Resume reader thread
+    usb->ResumeReader();
+
+    printf("   Ready! Watch for the green LED.\n\n");
+    snooze(500000); // 500ms to see the grid
+
     for (int i = 0; i < WARMUP_ITERATIONS + BENCHMARK_ITERATIONS; i++) {
-        // Send note-on
+        // Light up the pad GREEN to indicate which one to press
+        usb->SetPadColor(PAD_NOTE_TEST, static_cast<APCMiniLEDColor>(21));  // Green on MK2
+        snooze(50000); // 50ms to see the LED
+
+        // Send note-on and start timing
         usb_waiting_for_response = true;
         bigtime_t send_time = system_time();
 
-        if (usb->SendNoteOn(PAD_NOTE_TEST, 127) != APC_SUCCESS) {
-            if (i >= WARMUP_ITERATIONS) {
-                stats.failure_count++;
-            }
-            continue;
-        }
-
-        // Wait for response (with timeout)
-        bigtime_t timeout = send_time + 100000; // 100ms timeout
+        // Wait for user to press the pad (with timeout)
+        bigtime_t timeout = send_time + 2000000; // 2 second timeout for user input
         while (usb_waiting_for_response && system_time() < timeout) {
-            snooze(100); // 0.1ms polling interval
+            snooze(1000); // 1ms polling interval
         }
 
         if (!usb_waiting_for_response) {
             bigtime_t latency = usb_response_time - send_time;
-            // Only record after warmup
+            // Always show feedback
             if (i >= WARMUP_ITERATIONS) {
                 stats.RecordMeasurement(latency);
+                printf("   ✓ Measurement %d/%d: %.2f ms\n",
+                       i - WARMUP_ITERATIONS + 1, BENCHMARK_ITERATIONS, latency / 1000.0);
+            } else {
+                printf("   Warmup %d/%d: %.2f ms\n", i + 1, WARMUP_ITERATIONS, latency / 1000.0);
             }
+            // Brief flash to confirm
+            usb->SetPadColor(PAD_NOTE_TEST, static_cast<APCMiniLEDColor>(25));
+            snooze(100000); // 100ms flash
         } else {
             if (i >= WARMUP_ITERATIONS) {
                 stats.failure_count++;
+                printf("   ✗ Timeout %d/%d - no response\n", i - WARMUP_ITERATIONS + 1, BENCHMARK_ITERATIONS);
+            } else {
+                printf("   ✗ Warmup timeout %d/%d\n", i + 1, WARMUP_ITERATIONS);
             }
         }
 
-        // Send note-off to cleanup
-        usb->SendNoteOff(PAD_NOTE_TEST);
-        snooze(10000); // 10ms delay between tests
+        // Turn off LED
+        usb->SetPadColor(PAD_NOTE_TEST, APC_LED_OFF);
+        snooze(500000); // 500ms delay between tests for user to react
     }
+
+    // Turn off all LEDs at the end
+    printf("\n   Turning off LEDs...\n");
+    usb->PauseReader();
+    for (uint8_t pad = 0; pad < 64; pad++) {
+        usb->SetPadColor(pad, APC_LED_OFF);
+    }
+    usb->ResumeReader();
 
     return stats.success_count > 0;
 }
@@ -332,13 +425,17 @@ int main(int argc, char** argv) {
             BMidiConsumer* apc_consumer = nullptr;
             int32 id = 0;
 
-            // Find producer
+            // Find producer (search for APC Mini GUI, native APC Mini, or USB MIDI)
             while (true) {
                 BMidiProducer* prod = roster->NextProducer(&id);
                 if (!prod) break;
 
-                if (strstr(prod->Name(), "APC")) {
+                const char* name = prod->Name();
+                printf("   Found MIDI Producer: %s\n", name);
+                // Match: APC Mini, APC mini mk2, /dev/midi/usb, or APC (GUI)
+                if (strstr(name, "APC") || strstr(name, "/dev/midi/usb")) {
                     apc_producer = prod;
+                    printf("   → Selected: %s\n", name);
                     break;
                 }
                 prod->Release();
@@ -350,8 +447,12 @@ int main(int argc, char** argv) {
                 BMidiConsumer* cons = roster->NextConsumer(&id);
                 if (!cons) break;
 
-                if (strstr(cons->Name(), "APC")) {
+                const char* name = cons->Name();
+                printf("   Found MIDI Consumer: %s\n", name);
+                // Match: APC Mini, APC mini mk2, /dev/midi/usb, or APC (GUI)
+                if (strstr(name, "APC") || strstr(name, "/dev/midi/usb")) {
                     apc_consumer = cons;
+                    printf("   → Selected: %s\n", name);
                     break;
                 }
                 cons->Release();

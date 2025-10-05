@@ -3,6 +3,7 @@
 
 #include "apc_mini_defs.h"
 #include <OS.h>
+#include <Locker.h>
 #include <functional>
 
 class USBRawMIDI {
@@ -19,13 +20,21 @@ public:
 
     // MIDI communication
     APCMiniError SendMIDI(uint8_t status, uint8_t data1, uint8_t data2);
+    APCMiniError SendSysEx(const uint8_t* data, size_t length);
     APCMiniError SendNoteOn(uint8_t note, uint8_t velocity);
     APCMiniError SendNoteOff(uint8_t note);
     APCMiniError SendControlChange(uint8_t controller, uint8_t value);
     APCMiniError SetPadColor(uint8_t pad, APCMiniLEDColor color);
 
+    // APC Mini MK2 initialization
+    APCMiniError SendIntroductionMessage();
+
     // Callback registration
     void SetMIDICallback(MIDICallback callback) { midi_callback = callback; }
+
+    // Reader thread control for batch operations
+    void PauseReader();
+    void ResumeReader();
 
     // Device detection
     static bool FindAPCMini(char* device_path, size_t path_size);
@@ -44,6 +53,10 @@ private:
     // Threading
     thread_id reader_thread;
     volatile bool should_stop;
+    volatile bool pause_requested;
+    volatile bool is_paused;
+    sem_id pause_sem;            // Signals when pause is complete
+    BLocker endpoint_lock;       // Synchronizes USB endpoint access
 
     // Callback
     MIDICallback midi_callback;

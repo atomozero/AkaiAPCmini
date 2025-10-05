@@ -8,6 +8,9 @@
 #include <os/device/USBKit.h>
 #include <os/drivers/usb/USB_midi.h>
 
+// Haiku synchronization headers
+#include <support/Autolock.h>
+
 // Haiku native USB MIDI implementation for APC Mini MK2
 
 class APCMiniUSBDevice : public BUSBDevice {
@@ -148,15 +151,28 @@ USBRawMIDI::USBRawMIDI()
     , endpoint_out(0)
     , reader_thread(-1)
     , should_stop(false)
+    , pause_requested(false)
+    , is_paused(false)
+    , pause_sem(-1)
+    , endpoint_lock("usb_endpoint")
     , last_message_time(0)
 {
     memset(&stats, 0, sizeof(stats));
     stats.min_latency_us = UINT32_MAX;
+
+    // Create semaphore for pause synchronization
+    pause_sem = create_sem(0, "usb_pause_sem");
 }
 
 USBRawMIDI::~USBRawMIDI()
 {
     Shutdown();
+
+    // Clean up semaphore
+    if (pause_sem >= 0) {
+        delete_sem(pause_sem);
+        pause_sem = -1;
+    }
 }
 
 APCMiniError USBRawMIDI::Initialize()
@@ -247,8 +263,16 @@ APCMiniError USBRawMIDI::SendMIDI(uint8_t status, uint8_t data1, uint8_t data2)
     packet.midi[1] = data1;
     packet.midi[2] = data2;
 
+    // Acquire lock for exclusive endpoint access
+    BAutolock auto_lock(endpoint_lock);
+    if (!auto_lock.IsLocked()) {
+        return APC_ERROR_USB_TRANSFER_FAILED;
+    }
+
     // Send via USB endpoint
     BUSBEndpoint* endpoint = g_usb_roster->endpoint_out;
+    APCMiniError result_code = APC_ERROR_USB_TRANSFER_FAILED;
+
     if (endpoint) {
         ssize_t result;
 
@@ -261,16 +285,118 @@ APCMiniError USBRawMIDI::SendMIDI(uint8_t status, uint8_t data1, uint8_t data2)
 
         if (result == sizeof(packet)) {
             stats.messages_sent++;
-            return APC_SUCCESS;
+            result_code = APC_SUCCESS;
         } else {
             printf("USB MIDI send failed: %s (sent %zd bytes)\n",
                    strerror(result < 0 ? result : B_ERROR), result < 0 ? 0 : result);
             stats.error_count++;
-            return APC_ERROR_USB_TRANSFER_FAILED;
         }
     }
 
-    return APC_ERROR_USB_TRANSFER_FAILED;
+    return result_code;
+}
+
+APCMiniError USBRawMIDI::SendSysEx(const uint8_t* data, size_t length)
+{
+    if (!g_usb_roster || !g_usb_roster->found_device) {
+        return APC_ERROR_DEVICE_NOT_FOUND;
+    }
+
+    BUSBEndpoint* endpoint = g_usb_roster->endpoint_out;
+    if (!endpoint) {
+        return APC_ERROR_DEVICE_NOT_FOUND;
+    }
+
+    // Acquire lock for exclusive endpoint access
+    BAutolock auto_lock(endpoint_lock);
+    if (!auto_lock.IsLocked()) {
+        return APC_ERROR_USB_TRANSFER_FAILED;
+    }
+
+    // Send SysEx as USB MIDI packets (4 bytes each)
+    // CIN values: 0x04 = SysEx start/continue, 0x05/0x06/0x07 = SysEx end with 1/2/3 bytes
+    size_t offset = 0;
+    APCMiniError result_code = APC_SUCCESS;
+
+    while (offset < length && result_code == APC_SUCCESS) {
+        usb_midi_event_packet packet = {0};
+        size_t remaining = length - offset;
+
+        if (remaining >= 3) {
+            // Full packet (3 MIDI bytes)
+            if (offset + 3 < length) {
+                // Not the last packet
+                packet.cin = 0x04;  // SysEx starts or continues
+            } else {
+                // Last packet with 3 bytes
+                packet.cin = 0x07;  // SysEx ends with 3 bytes
+            }
+            packet.midi[0] = data[offset];
+            packet.midi[1] = data[offset + 1];
+            packet.midi[2] = data[offset + 2];
+            offset += 3;
+        } else if (remaining == 2) {
+            // Last packet with 2 bytes
+            packet.cin = 0x06;  // SysEx ends with 2 bytes
+            packet.midi[0] = data[offset];
+            packet.midi[1] = data[offset + 1];
+            packet.midi[2] = 0;
+            offset += 2;
+        } else {
+            // Last packet with 1 byte
+            packet.cin = 0x05;  // SysEx ends with 1 byte
+            packet.midi[0] = data[offset];
+            packet.midi[1] = 0;
+            packet.midi[2] = 0;
+            offset += 1;
+        }
+
+        // Send packet
+        ssize_t result = endpoint->BulkTransfer(&packet, sizeof(packet));
+        if (result != sizeof(packet)) {
+            printf("USB SysEx packet send failed: %s\n",
+                   strerror(result < 0 ? result : B_ERROR));
+            result_code = APC_ERROR_USB_TRANSFER_FAILED;
+            stats.error_count++;
+        } else {
+            stats.messages_sent++;
+        }
+    }
+
+    return result_code;
+}
+
+APCMiniError USBRawMIDI::SendIntroductionMessage()
+{
+    // APC Mini MK2 Introduction Message (from protocol doc page 13)
+    // F0 47 7F 4F 60 00 04 00 <Version High> <Version Low> <Bugfix> F7
+    const uint8_t intro_msg[] = {
+        0xF0,  // SysEx start
+        0x47,  // Manufacturer ID (Akai)
+        0x7F,  // Device ID
+        0x4F,  // Product ID (APC Mini MK2)
+        0x60,  // Message type: Introduction
+        0x00,  // Data length MSB
+        0x04,  // Data length LSB (4 bytes)
+        0x00,  // Application/Configuration ID
+        0x01,  // Version High
+        0x00,  // Version Low
+        0x00,  // Bugfix level
+        0xF7   // SysEx end
+    };
+
+    printf("   📤 Sending Introduction Message to APC Mini MK2...\n");
+    APCMiniError result = SendSysEx(intro_msg, sizeof(intro_msg));
+
+    if (result == APC_SUCCESS) {
+        printf("   ✅ Introduction Message sent successfully\n");
+        // Wait a bit for device to process initialization
+        snooze(50000); // 50ms
+    } else {
+        printf("   ❌ Failed to send Introduction Message\n");
+    }
+
+    return result;
 }
 
 APCMiniError USBRawMIDI::SendNoteOn(uint8_t note, uint8_t velocity)
@@ -329,6 +455,22 @@ void USBRawMIDI::ReaderThreadLoop()
     printf("   🔄 USB MIDI reader thread started (ultra-low latency mode)\n");
 
     while (!should_stop) {
+        // Check if pause is requested
+        if (pause_requested) {
+            // Signal that we're paused
+            is_paused = true;
+            release_sem(pause_sem);
+
+            // Wait until pause is lifted
+            while (pause_requested && !should_stop) {
+                snooze(1000); // 1ms
+            }
+
+            // Clear pause state
+            is_paused = false;
+            continue;
+        }
+
         if (!g_usb_roster || !g_usb_roster->found_device) {
             snooze(1000); // 1ms - ultra low latency
             continue;
@@ -340,15 +482,23 @@ void USBRawMIDI::ReaderThreadLoop()
             continue;
         }
 
-        // Read USB MIDI packet
+        // Read USB MIDI packet - protected by endpoint lock
         usb_midi_event_packet packet;
         ssize_t result;
 
-        // Use appropriate transfer method based on endpoint type
-        if (endpoint->IsInterrupt()) {
-            result = endpoint->InterruptTransfer(&packet, sizeof(packet));
-        } else {
-            result = endpoint->BulkTransfer(&packet, sizeof(packet));
+        {
+            BAutolock auto_lock(endpoint_lock);
+            if (!auto_lock.IsLocked()) {
+                snooze(1000);
+                continue;
+            }
+
+            // Use appropriate transfer method based on endpoint type
+            if (endpoint->IsInterrupt()) {
+                result = endpoint->InterruptTransfer(&packet, sizeof(packet));
+            } else {
+                result = endpoint->BulkTransfer(&packet, sizeof(packet));
+            }
         }
 
         if (result >= 4) {
@@ -379,6 +529,40 @@ void USBRawMIDI::ReaderThreadLoop()
     }
 
     printf("USB MIDI reader thread stopped\n");
+}
+
+void USBRawMIDI::PauseReader()
+{
+    if (reader_thread < 0 || pause_sem < 0) {
+        return;
+    }
+
+    printf("[DEBUG] PauseReader: Requesting pause...\n");
+
+    // Request pause
+    pause_requested = true;
+
+    // Wait for reader thread to acknowledge pause (with timeout)
+    status_t result = acquire_sem_etc(pause_sem, 1, B_RELATIVE_TIMEOUT, 100000); // 100ms timeout
+    if (result == B_OK) {
+        printf("[DEBUG] PauseReader: Reader thread paused successfully\n");
+    } else {
+        printf("[DEBUG] PauseReader: Timeout waiting for pause (thread may be blocked)\n");
+    }
+}
+
+void USBRawMIDI::ResumeReader()
+{
+    if (reader_thread < 0) {
+        return;
+    }
+
+    printf("[DEBUG] ResumeReader: Resuming reader thread...\n");
+
+    // Clear pause request
+    pause_requested = false;
+
+    printf("[DEBUG] ResumeReader: Reader thread resumed\n");
 }
 
 // USB Device Scanner implementation (simplified for Haiku)

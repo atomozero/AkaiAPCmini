@@ -15,6 +15,9 @@ EXAMPLES_DIR = ../examples
 SOURCES = $(SRC_DIR)/apc_mini_test.cpp \
           $(SRC_DIR)/usb_haiku_midi.cpp
 
+# MidiKit driver test (pure driver testing, no USB Raw)
+MIDIKIT_TEST_SOURCES = $(SRC_DIR)/midikit_driver_test.cpp
+
 # GUI application sources
 GUI_SOURCES = $(SRC_DIR)/apc_mini_gui.cpp \
               $(SRC_DIR)/apc_mini_gui_app.cpp \
@@ -29,6 +32,7 @@ EXAMPLE_SOURCES = $(EXAMPLES_DIR)/led_patterns.cpp \
 
 # Object files
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+MIDIKIT_TEST_OBJECTS = $(MIDIKIT_TEST_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 GUI_OBJECTS = $(GUI_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 EXAMPLE_OBJECTS = $(EXAMPLE_SOURCES:$(EXAMPLES_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
@@ -112,9 +116,22 @@ BENCHMARK_NAME = latency_benchmark
 .PHONY: benchmark
 benchmark: $(BENCHMARK_NAME)
 
-$(BENCHMARK_NAME): $(OBJ_DIR)/latency_benchmark.o $(OBJ_DIR)/usb_raw_midi_stub.o
+$(BENCHMARK_NAME): $(OBJ_DIR)/latency_benchmark.o $(OBJ_DIR)/usb_haiku_midi.o
 	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) -o $@ $^ $(HAIKU_LIBS)
 	@echo "Built benchmark tool: $(BENCHMARK_NAME)"
+
+# MidiKit driver test (pure driver testing, no USB Raw)
+MIDIKIT_TEST_NAME = midikit_driver_test
+.PHONY: test-driver
+test-driver: $(MIDIKIT_TEST_NAME)
+
+$(MIDIKIT_TEST_NAME): $(MIDIKIT_TEST_OBJECTS) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) -o $@ $^ $(HAIKU_LIBS)
+	@echo "Built MidiKit driver test: $(MIDIKIT_TEST_NAME)"
+	@echo ""
+	@echo "Purpose: Test if blocking occurs in Haiku midi_usb driver"
+	@echo "Usage:   ./$(MIDIKIT_TEST_NAME)"
+	@echo "         Compare results with USB Raw mode (apc_mini_test)"
 
 # Testing targets
 .PHONY: test
