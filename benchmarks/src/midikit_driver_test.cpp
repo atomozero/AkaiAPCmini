@@ -28,6 +28,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <dirent.h>
+#include <math.h>
+#include <vector>
+#include <algorithm>
 #include <OS.h>
 #include <String.h>
 #include <midi2/MidiRoster.h>
@@ -40,6 +43,15 @@
 #define TEST_BATCH_SIZE 64
 #define TEST_ITERATIONS 10
 #define TIMEOUT_US 5000000  // 5 seconds
+
+// Global verbosity level
+enum LogLevel { QUIET = 0, NORMAL = 1, VERBOSE = 2, DEBUG = 3 };
+static LogLevel g_log_level = NORMAL;
+
+#define LOG_VERBOSE(fmt, ...) \
+    if (g_log_level >= VERBOSE) printf("[VERBOSE] " fmt "\n", ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) \
+    if (g_log_level >= DEBUG) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
 class MidiKitDriverTest {
 public:
@@ -69,6 +81,51 @@ private:
         bigtime_t max_batch_time_us;
         bigtime_t total_batch_time_us;
         uint32_t timeout_count;
+        std::vector<bigtime_t> batch_time_samples;
+
+        TestStats() { Reset(); }
+
+        void Reset() {
+            messages_sent = 0;
+            batches_completed = 0;
+            min_batch_time_us = UINT64_MAX;
+            max_batch_time_us = 0;
+            total_batch_time_us = 0;
+            timeout_count = 0;
+            batch_time_samples.clear();
+        }
+
+        void RecordBatchTime(bigtime_t time) {
+            batch_time_samples.push_back(time);
+            total_batch_time_us += time;
+            if (time < min_batch_time_us) min_batch_time_us = time;
+            if (time > max_batch_time_us) max_batch_time_us = time;
+        }
+
+        double GetAverage() const {
+            if (batch_time_samples.empty()) return 0.0;
+            return (double)total_batch_time_us / batch_time_samples.size();
+        }
+
+        double GetStdDev() const {
+            if (batch_time_samples.size() < 2) return 0.0;
+            double mean = GetAverage();
+            double variance = 0.0;
+            for (auto sample : batch_time_samples) {
+                double diff = sample - mean;
+                variance += diff * diff;
+            }
+            return sqrt(variance / batch_time_samples.size());
+        }
+
+        bigtime_t GetPercentile(double p) const {
+            if (batch_time_samples.empty()) return 0;
+            std::vector<bigtime_t> sorted = batch_time_samples;
+            std::sort(sorted.begin(), sorted.end());
+            size_t index = (size_t)(p * sorted.size());
+            if (index >= sorted.size()) index = sorted.size() - 1;
+            return sorted[index];
+        }
     } stats;
 
     bool FindAPCMini();
@@ -81,9 +138,11 @@ bool MidiKitDriverTest::Initialize()
 {
     ResetStats();
 
-    printf("=== MidiKit Driver Test ===\n");
-    printf("Purpose: Test if blocking occurs in Haiku midi_usb driver\n");
-    printf("Method: Batch LED writes using ONLY BMidiProducer API\n\n");
+    if (g_log_level >= NORMAL) {
+        printf("=== MidiKit Driver Test ===\n");
+        printf("Purpose: Test if blocking occurs in Haiku midi_usb driver\n");
+        printf("Method: Batch LED writes using ONLY BMidiProducer API\n\n");
+    }
 
     if (!FindAPCMini()) {
         printf("MidiKit route failed, trying direct port access...\n\n");
@@ -283,16 +342,11 @@ void MidiKitDriverTest::SendBatchLEDCommands(int batch_num)
 
     // Update stats
     stats.batches_completed++;
-    stats.total_batch_time_us += batch_time;
-    if (batch_time < stats.min_batch_time_us) {
-        stats.min_batch_time_us = batch_time;
-    }
-    if (batch_time > stats.max_batch_time_us) {
-        stats.max_batch_time_us = batch_time;
-    }
+    stats.RecordBatchTime(batch_time);
 
     printf("Batch %2d: %6ld μs (%d msgs)\n",
            batch_num, batch_time, TEST_BATCH_SIZE);
+    LOG_DEBUG("Batch %d completed in %ld μs", batch_num, batch_time);
 
     // Check for timeout (indicates blocking in driver)
     if (batch_time > TIMEOUT_US) {
@@ -330,11 +384,14 @@ void MidiKitDriverTest::PrintResults()
     printf("Batches completed: %u\n", stats.batches_completed);
 
     if (stats.batches_completed > 0) {
-        bigtime_t avg = stats.total_batch_time_us / stats.batches_completed;
-        printf("Batch timing:\n");
-        printf("  Min: %6ld μs\n", stats.min_batch_time_us);
-        printf("  Avg: %6ld μs\n", avg);
-        printf("  Max: %6ld μs\n", stats.max_batch_time_us);
+        printf("\nBatch timing:\n");
+        printf("  Min:    %6ld μs\n", stats.min_batch_time_us);
+        printf("  P50:    %6ld μs  (median)\n", stats.GetPercentile(0.50));
+        printf("  Avg:    %6.2f μs\n", stats.GetAverage());
+        printf("  P95:    %6ld μs\n", stats.GetPercentile(0.95));
+        printf("  P99:    %6ld μs\n", stats.GetPercentile(0.99));
+        printf("  Max:    %6ld μs\n", stats.max_batch_time_us);
+        printf("  StdDev: %6.2f μs\n", stats.GetStdDev());
     }
 
     printf("\n=== Analysis ===\n");
@@ -370,29 +427,48 @@ void MidiKitDriverTest::PrintResults()
 
 void MidiKitDriverTest::ResetStats()
 {
-    memset(&stats, 0, sizeof(stats));
-    stats.min_batch_time_us = UINT64_MAX;
+    stats.Reset();
 }
 
 int main(int argc, char* argv[])
 {
-    printf("=== MidiKit Driver Test with Crash Workaround ===\n");
-    printf("This version includes 5ms delay between messages to prevent driver crash\n");
-    printf("Trade-off: More stable but slower (~320ms per batch instead of ~2ms)\n\n");
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("MidiKit Driver Test - Haiku OS\n\n");
+            printf("Usage: %s [options]\n\n", argv[0]);
+            printf("Options:\n");
+            printf("  --verbose, -v       Enable verbose output\n");
+            printf("  --debug, -d         Enable debug output\n");
+            printf("  --quiet, -q         Minimal output\n");
+            printf("  --help, -h          Show this help\n\n");
+            printf("Purpose:\n");
+            printf("  Tests midi_usb driver with APC Mini hardware\n");
+            printf("  Uses ONLY Haiku MidiKit API (no USB Raw access)\n\n");
+            printf("Workaround:\n");
+            printf("  - 5ms delay between messages to prevent crash\n");
+            printf("  - Trade-off: stable but slow (~320ms per batch)\n\n");
+            printf("Known Issues:\n");
+            printf("  - Driver crashes without delay workaround\n");
+            printf("  - BMidiRoster shows device paths, not names\n");
+            return 0;
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            g_log_level = VERBOSE;
+        } else if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "-d") == 0) {
+            g_log_level = DEBUG;
+        } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
+            g_log_level = QUIET;
+        } else {
+            printf("Unknown option: %s\n", argv[i]);
+            printf("Use --help for usage information\n");
+            return 1;
+        }
+    }
 
-    if (argc > 1 && strcmp(argv[1], "--help") == 0) {
-        printf("Usage: %s [--help]\n", argv[0]);
-        printf("\nThis test sends MIDI messages to APC Mini using ONLY Haiku MidiKit API\n");
-        printf("(no USB Raw access - pure driver testing)\n\n");
-        printf("WORKAROUND ACTIVE:\n");
-        printf("  - 5ms delay added between each message\n");
-        printf("  - Prevents 'Kill Thread' crash in midi_usb driver\n");
-        printf("  - Expected batch time: ~320ms (64 messages × 5ms delay)\n\n");
-        printf("KNOWN ISSUES:\n");
-        printf("  - BMidiRoster returns empty (driver doesn't publish endpoints)\n");
-        printf("  - Falls back to direct /dev/midi/usb/0-0 access\n");
-        printf("  - Without delay workaround: crashes with 'Kill Thread'\n");
-        return 0;
+    if (g_log_level >= NORMAL) {
+        printf("=== MidiKit Driver Test with Crash Workaround ===\n");
+        printf("This version includes 5ms delay between messages to prevent driver crash\n");
+        printf("Trade-off: More stable but slower (~320ms per batch instead of ~2ms)\n\n");
     }
 
     MidiKitDriverTest test;
