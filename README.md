@@ -93,7 +93,10 @@ make detect-midi
 
 ### Performance Benchmarks
 - **[Benchmark Suite](benchmarks/README.md)**: Independent MIDI performance testing project
-- **[Results & Analysis](benchmarks/RESULTS.md)**: Haiku MIDI stack performance analysis
+- **[Phase 1 Results](benchmarks/CHANGELOG_PHASE1.md)**: Statistical rigor and batch optimization
+- **[Phase 2 Results](benchmarks/CHANGELOG_PHASE2.md)**: Message type and burst stress testing
+- **[Phase 3 Results](benchmarks/CHANGELOG_PHASE3.md)**: Warmup analysis and regression detection
+- **[Raw Driver Findings](benchmarks/RAW_DRIVER_TEST_FINDINGS.md)**: Exclusive device locking discovery
 
 ## Interactive Commands
 
@@ -166,6 +169,52 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 - **Main Thread**: User interface and application logic
 - **USB Reader Thread**: Continuous USB message polling (when using USB Raw)
 - **MIDI Thread**: Haiku MIDI message handling (when using MIDI fallback)
+
+## Architecture & Performance
+
+### Why USB Raw Access?
+
+This application uses **USB Raw access** (`/dev/bus/usb/`) instead of Haiku's standard MIDI APIs for critical reasons discovered through extensive benchmarking:
+
+#### Haiku MIDI Architecture Limitations
+
+**Exclusive Device Locking**:
+- `midi_server` locks all `/dev/midi/usb/` devices exclusively
+- No application can access MIDI devices directly
+- All MIDI traffic **must** go through `midi_server` IPC
+- Prevents driver-level optimization and direct hardware access
+
+**Performance Issues**:
+- **MIDI Kit 2 (virtual)**: ~7.65 μs latency (excellent for IPC, but virtual only)
+- **MIDI Kit 1 (hardware)**: ~5000 μs/msg with 5ms delay workaround
+- **Driver race condition**: Crashes without 5ms inter-message delay
+- **160x performance penalty**: Workaround makes real-time usage impossible
+
+**USB Raw Approach** (this application):
+- Bypasses `midi_server` and `midi_usb` driver completely
+- Direct USB communication via `/dev/bus/usb/`
+- **<1ms latency**: Acceptable for real-time performance
+- **No crashes**: Stable operation without delays
+- **Full control**: Application-level protocol implementation
+
+### Benchmark Results
+
+Comprehensive benchmarks in the `/benchmarks` directory prove that:
+
+| Approach | Latency | Throughput | Stability | Real-time Usable? |
+|----------|---------|------------|-----------|-------------------|
+| **MIDI Kit 2 (virtual)** | 7.65 μs | 16,799 msg/s | ✓ Stable | ✓ Yes (virtual only) |
+| **MIDI Kit 1 (hardware)** | 5000 μs | ~2 msg/s | ❌ Crashes | ❌ No |
+| **USB Raw (this app)** | <1000 μs | >1000 msg/s | ✓ Stable | ✓ **Yes** |
+
+**Key Findings**:
+1. **Exclusive locking** prevents direct `/dev/midi/usb/` access
+2. **Driver race condition** requires 5ms delays (unusable for real-time)
+3. **USB Raw is the only viable approach** for hardware MIDI on Haiku
+
+See [`benchmarks/README.md`](benchmarks/README.md) for detailed performance analysis.
+
+---
 
 ## MIDI Mapping
 

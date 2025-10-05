@@ -102,22 +102,39 @@ const char* FindAPCMiniDevice() {
         return nullptr;
     }
 
+    // Try each device until we find one we can open
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] == '.') continue;
 
         snprintf(device_path, sizeof(device_path), "/dev/midi/usb/%s", entry->d_name);
-
-        // Try to open and test if it's APC Mini
-        // We'll just use the first available device for this test
-        // In production, you'd need to query USB device info
         LOG_DEBUG("Found MIDI device: %s\n", device_path);
 
-        closedir(dir);
-        return device_path;
+        // Try to open this device
+        int test_fd = open(device_path, O_WRONLY);
+        if (test_fd >= 0) {
+            // Success! This device is available
+            close(test_fd);
+            closedir(dir);
+            LOG_VERBOSE("Selected available device: %s\n", device_path);
+            return device_path;
+        }
+
+        // Try O_RDWR if O_WRONLY failed
+        test_fd = open(device_path, O_RDWR);
+        if (test_fd >= 0) {
+            close(test_fd);
+            closedir(dir);
+            LOG_VERBOSE("Selected available device (RDWR): %s\n", device_path);
+            return device_path;
+        }
+
+        LOG_DEBUG("  -> Device busy or inaccessible\n");
     }
 
     closedir(dir);
+    LOG_NORMAL("ERROR: No available MIDI devices found\n");
+    LOG_NORMAL("All devices are busy - likely midi_server has them locked\n");
     return nullptr;
 }
 
@@ -314,10 +331,29 @@ int main(int argc, char* argv[]) {
     LOG_NORMAL("Using device: %s\n", device_path);
 
     // Open device with write-only access
+    // Note: Haiku midi_server may keep devices open, causing EBUSY
+    // Try O_WRONLY first, then O_RDWR if that fails
     int fd = open(device_path, O_WRONLY);
+    if (fd < 0 && errno == EBUSY) {
+        LOG_VERBOSE("O_WRONLY failed (busy), trying O_RDWR...\n");
+        fd = open(device_path, O_RDWR);
+    }
     if (fd < 0) {
         LOG_NORMAL("ERROR: Cannot open %s: %s\n", device_path, strerror(errno));
-        LOG_NORMAL("Check permissions: ls -l %s\n", device_path);
+
+        if (errno == EBUSY) {
+            LOG_NORMAL("\n");
+            LOG_NORMAL("Device is busy - likely midi_server has it open.\n");
+            LOG_NORMAL("Possible solutions:\n");
+            LOG_NORMAL("  1. Stop midi_server: /system/servers/midi_server -q\n");
+            LOG_NORMAL("  2. Disconnect and reconnect APC Mini\n");
+            LOG_NORMAL("  3. Use a different MIDI device\n");
+            LOG_NORMAL("\n");
+            LOG_NORMAL("Note: This confirms Haiku's MIDI system uses exclusive device access,\n");
+            LOG_NORMAL("      which may contribute to the performance issues we're testing.\n");
+        } else {
+            LOG_NORMAL("Check permissions: ls -l %s\n", device_path);
+        }
         return 1;
     }
 

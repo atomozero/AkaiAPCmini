@@ -63,14 +63,8 @@ private:
     public:
         MIDIConsumerApp(APCMiniTestApp* app) : app(app) {
             SetName("APC Mini Input");
-            SetProperties("manufacturer", "AKAI Professional");
-            SetProperties("product", "APC mini mk2 Controller");
-            SetProperties("version", "1.0");
-            SetProperties("description", "Receives MIDI input from APC Mini controller pads, faders and buttons");
-            SetProperties("type", "controller");
-            SetProperties("channels", "16");
-            SetProperties("notes", "64 velocity-sensitive pads (C1-C5)");
-            SetProperties("controllers", "9 faders (CC48-56), track/scene buttons");
+            // Note: SetProperties() requires BMessage*, not string parameters
+            // Properties can be set via BMessage if needed in the future
         }
         virtual void NoteOn(uchar channel, uchar note, uchar velocity, bigtime_t time) override;
         virtual void NoteOff(uchar channel, uchar note, uchar velocity, bigtime_t time) override;
@@ -84,15 +78,8 @@ private:
     public:
         MIDIProducerApp() {
             SetName("APC Mini Output");
-            SetProperties("manufacturer", "AKAI Professional");
-            SetProperties("product", "APC mini mk2 Controller");
-            SetProperties("version", "1.0");
-            SetProperties("description", "Sends MIDI output to APC Mini for LED control and feedback");
-            SetProperties("type", "controller");
-            SetProperties("channels", "16");
-            SetProperties("notes", "RGB LED control via Note On/Off");
-            SetProperties("controllers", "Button LED control, device control");
-            SetProperties("features", "RGB pad LEDs, button LEDs, bi-directional communication");
+            // Note: SetProperties() requires BMessage*, not string parameters
+            // Properties can be set via BMessage if needed in the future
         }
     };
 
