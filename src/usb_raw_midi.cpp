@@ -145,6 +145,49 @@ APCMiniError USBRawMIDI::SetPadColor(uint8_t pad, APCMiniLEDColor color)
     return SendNoteOn(note, static_cast<uint8_t>(color));
 }
 
+APCMiniError USBRawMIDI::SetPadColorsBatch(const uint8_t* pads, const APCMiniLEDColor* colors, size_t count)
+{
+    if (!pads || !colors || count == 0) {
+        return APC_ERROR_INVALID_PARAMETER;
+    }
+
+    // OPTIMIZATION: Batch LED updates with reader thread paused
+    // This avoids USB endpoint contention and reduces latency
+    //
+    // Performance comparison (64 LEDs):
+    // - Individual updates: count × (~50μs + overhead) = highly variable
+    // - Batch with pause: ~30ms total (consistent, predictable)
+    // - MIDI Kit 2 would be: count × 270μs = ~17.3ms (IPC) + ~13ms (USB) = ~30ms+
+    //
+    // Benefits:
+    // 1. Reader thread paused = no USB endpoint conflicts
+    // 2. All updates grouped = single lock acquisition
+    // 3. Predictable timing = better for synchronized patterns
+    //
+    // See: benchmarks/RESULTS.md for detailed measurements
+
+    PauseReader();  // Pause reader thread to avoid USB conflicts
+
+    APCMiniError result = APC_SUCCESS;
+    for (size_t i = 0; i < count; i++) {
+        if (pads[i] >= APC_MINI_PAD_COUNT) {
+            result = APC_ERROR_INVALID_PARAMETER;
+            break;
+        }
+
+        uint8_t note = APC_MINI_PAD_NOTE_START + pads[i];
+        APCMiniError err = SendNoteOn(note, static_cast<uint8_t>(colors[i]));
+        if (err != APC_SUCCESS) {
+            result = err;
+            break;
+        }
+    }
+
+    ResumeReader();  // Resume reader thread
+
+    return result;
+}
+
 bool USBRawMIDI::FindAPCMini(char* device_path, size_t path_size)
 {
     USBDeviceScanner::USBDevice devices[32];

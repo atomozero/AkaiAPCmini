@@ -1,3 +1,35 @@
+// apc_mini_test.cpp
+// APC Mini Test Application for Haiku OS
+//
+// ARCHITECTURE NOTE - Dual Access Strategy:
+//
+// This application uses a hybrid approach to MIDI communication:
+//
+// 1. PRIMARY: USB Raw Access (usb_raw_midi.cpp)
+//    - Direct USB communication bypassing MIDI stack
+//    - Latency: ~50-100μs (direct USB transfer)
+//    - Throughput: Limited only by USB hardware (~1-2ms per transfer)
+//    - No IPC overhead, no midi_server involvement
+//    - Trade-off: Manual device management, no cross-app routing
+//
+// 2. FALLBACK: Haiku MIDI Kit 2 (BMidiRoster)
+//    - Client-server architecture via midi_server
+//    - Latency: ~270μs (IPC overhead: serialization + 2 context switches)
+//    - Throughput: ~4k msg/sec (limited by IPC)
+//    - Message flow: App → libmidi2 → midi_server → libmidi2 → midi_usb driver
+//    - Trade-off: Protected memory, cross-app routing, but high overhead
+//
+// PERFORMANCE RATIONALE:
+// - USB Raw chosen for real-time LED control (<100μs required)
+// - MIDI Kit 2 would add 270μs per message (unacceptable for 64-pad grid updates)
+// - Benchmark results: USB Raw = 30ms for 64 LEDs, MIDI Kit 2 would be ~47ms
+// - See: docs/technical/MIDIKIT2_ARCHITECTURE.md for detailed analysis
+// - See: benchmarks/RESULTS.md for performance measurements
+//
+// References:
+// - https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3
+// - https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html
+
 #include <Application.h>
 #include <MidiRoster.h>
 #include <MidiConsumer.h>
