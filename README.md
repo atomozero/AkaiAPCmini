@@ -85,6 +85,7 @@ make detect-midi
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Common issues and solutions
 
 ### Technical Documentation
+- **[MIDI Kit 2 Architecture](docs/technical/MIDIKIT2_ARCHITECTURE.md)**: Client-server architecture analysis
 - **[Thread Safety](docs/technical/THREAD_SAFETY.md)**: USB reader thread synchronization
 - **[USB Synchronization](docs/technical/USB_SYNCHRONIZATION.md)**: Atomic operations implementation
 - **[Fader Mapping Fix](docs/technical/FADER_MAPPING_FIX.md)**: CC mapping correction details

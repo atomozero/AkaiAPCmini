@@ -1,6 +1,25 @@
 // midikit_driver_test.cpp
 // Minimal test using ONLY Haiku MidiKit API (no USB Raw access)
 // Purpose: Verify if blocking during batch LED writes occurs in midi_usb driver
+//
+// ARCHITECTURE NOTE:
+// This test uses MIDI Kit 2's client-server architecture with IPC overhead.
+// For hardware devices, the message flow is:
+//   App → libmidi2 → midi_server → libmidi2 → midi_usb driver → USB endpoint
+//
+// Expected latency breakdown:
+//   - IPC overhead: ~270μs (MidiKit 2 client-server)
+//   - Driver processing: ~50μs (midi_usb driver)
+//   - USB transfer: ~1-2ms (hardware bulk transfer)
+//   Total: ~1.5-2.5ms per message
+//
+// Known Issues:
+//   - midi_usb driver crashes on batch writes ("Kill Thread")
+//   - BMidiRoster endpoint naming incorrect (shows device path)
+//   - No endpoint discovery (roster returns empty)
+//
+// References:
+// - https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3
 
 #include <stdio.h>
 #include <string.h>

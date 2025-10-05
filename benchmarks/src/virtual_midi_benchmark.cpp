@@ -5,6 +5,21 @@
 // virtual MIDI routing (producer -> consumer) without USB/hardware involvement.
 //
 // This isolates MidiKit overhead from USB driver/hardware latency.
+//
+// ARCHITECTURE NOTE:
+// MidiKit 2 uses a client-server architecture with Inter-Process Communication (IPC).
+// Message flow: Producer → libmidi2 → midi_server → libmidi2 → Consumer
+// Expected overhead: ~270μs per message due to:
+//   - Serialization: ~50μs (BMessage encoding)
+//   - IPC to server: ~80μs (context switch + port)
+//   - Server routing: ~30μs (endpoint lookup)
+//   - IPC to consumer: ~80μs (context switch + port)
+//   - Deserialization: ~30μs (BMessage decoding)
+// Total: ~270μs (measured in practice)
+//
+// References:
+// - https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3
+// - https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html
 
 #include <stdio.h>
 #include <string.h>

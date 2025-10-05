@@ -71,6 +71,7 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 - **docs/TROUBLESHOOTING.md**: Common issues and solutions
 
 ### Technical Documentation
+- **docs/technical/MIDIKIT2_ARCHITECTURE.md**: MIDI Kit 2 client-server architecture analysis
 - **docs/technical/THREAD_SAFETY.md**: USB reader thread synchronization implementation
 - **docs/technical/USB_SYNCHRONIZATION.md**: Atomic operations and semaphore solution
 - **docs/technical/FADER_MAPPING_FIX.md**: Critical fix for fader CC mapping

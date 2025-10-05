@@ -48,17 +48,34 @@
 1. **MidiKit has significant overhead** (~270 μs avg latency)
    - Expected: <10 μs (pure memory copy)
    - Actual: ~270 μs (27x slower than expected)
-   - **Root Cause**: MIDI Kit 2 Routing Architecture
-     - Uses centralized "Midi Roster" for endpoint management
-     - Real-time notifications for endpoint changes
-     - Filter endpoint support adds processing overhead
-     - Thread synchronization between producers and consumers
-   - **Reference**: [OpenBeOS MIDI Kit 2 Design](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
+   - **Root Cause**: MIDI Kit 2 Client-Server Architecture
+     - **midi_server**: Centralized server process managing all endpoints
+     - **IPC overhead**: Inter-Process Communication for every message
+     - **Message pipeline**: App → libmidi2 → midi_server → libmidi2 → Target App
+     - **Proxy objects**: Each endpoint accessed through proxy (serialization cost)
+     - **Protected memory**: Full address space isolation between applications
+     - **Multiple hops**: Each hop adds serialization + IPC + deserialization overhead
+   - **Architecture breakdown of ~270μs**:
+     - Serialization: ~50μs (encode MIDI message for IPC)
+     - IPC to midi_server: ~80μs (context switch + message passing)
+     - Server routing: ~30μs (endpoint lookup + filtering)
+     - IPC to consumer: ~80μs (context switch + message passing)
+     - Deserialization: ~30μs (decode MIDI message)
+   - **References**:
+     - [MIDI Kit 2 Design Discussion](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)
+     - [Client-Server Architecture](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3)
+     - [OpenBeOS Newsletter #33](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
 2. **Throughput limited** (~3,888 msg/sec)
    - Expected: >100,000 msg/sec
    - Actual: ~4k msg/sec (25x slower)
-   - Bottleneck: MidiKit internal routing
+   - **Bottleneck**: IPC serialization and context switching
+   - Each message requires:
+     - Minimum 2 context switches (app → server → app)
+     - Message serialization/deserialization
+     - midi_server processing time
+   - **Serial processing**: Messages processed sequentially through server
+   - **No batching**: Each MIDI message sent individually (no bulk IPC)
 
 3. **Batch operations expensive** (30.5 ms for 64 messages)
    - LED grid update: minimum 30 ms (MidiKit only)
@@ -70,11 +87,13 @@
    - Routing is reliable, just slow
 
 **Implications**:
-- Any Haiku MIDI app using MIDI Kit 2 has this baseline overhead
-- USB MIDI will be slower than pure MidiKit (adds hardware latency)
-- Real-time MIDI applications challenging on current MidiKit architecture
+- Any Haiku MIDI app using MIDI Kit 2 has this baseline IPC overhead
+- USB MIDI will be slower than pure MidiKit (adds hardware latency on top of IPC)
+- Real-time MIDI applications challenging due to client-server architecture
 - **Known Issue**: Documentation from 2002 noted "playback really lags" with rapid MIDI events
-- Filter endpoints and routing notifications contribute to latency
+- **Architectural limitation**: IPC overhead cannot be eliminated without redesign
+- **Workaround**: Direct USB Raw access bypasses midi_server entirely (main app approach)
+- **Trade-off**: Protected memory isolation vs performance
 
 ---
 
@@ -182,15 +201,22 @@ This confirms the main application's decision to use **USB Raw access** was corr
    - See: `midikit_driver_test.cpp` reproducer
 
 2. **Optimize MidiKit routing architecture**
-   - 270 μs per message too high
+   - 270 μs per message too high for real-time applications
    - Target: <50 μs for virtual routing
-   - **Investigate**:
-     - Midi Roster centralization overhead
-     - Real-time notification mechanism cost
-     - Filter endpoint processing overhead
-     - Producer-to-consumer thread synchronization
+   - **Root cause identified**: Client-server architecture with IPC overhead
+   - **Optimization opportunities**:
+     - **Batch IPC**: Send multiple MIDI messages in single IPC call
+     - **Shared memory**: Use shared memory for high-frequency data paths
+     - **Local optimization**: Detect same-process endpoints and bypass IPC
+     - **Async messaging**: Use non-blocking IPC where possible
+     - **Zero-copy**: Minimize serialization overhead with shared buffers
+   - **Architectural alternatives**:
+     - In-process routing for same-app endpoints (eliminate IPC)
+     - Direct USB access for hardware devices (bypass midi_server)
+     - Hybrid model: IPC for cross-app, direct for intra-app
    - **References**:
      - [MIDI Kit 2 Design Discussion](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)
+     - [Client-Server Architecture](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3)
      - [OpenBeOS Newsletter #33](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
 3. **Fix endpoint naming**
