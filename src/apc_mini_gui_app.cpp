@@ -21,6 +21,8 @@ APCMiniWindow::APCMiniWindow()
     , status_view(nullptr)
     , debug_window(nullptr)
     , background_view(nullptr)
+    , connection_panel(nullptr)
+    , performance_panel(nullptr)
     // , main_container(nullptr) // Removed
     , is_connected(false)
 {
@@ -770,6 +772,21 @@ void APCMiniWindow::SetupLayout()
     status_panel->AddChild(status_view);
 
     current_y += 40;  // Status panel height + margin
+
+    // 6. Create and position diagnostic panels (Connection Status + Performance Indicators)
+    float panel_width = (fader_width - 10) / 2;  // Two panels side by side with gap
+
+    // Connection Status Panel (left)
+    BRect conn_panel_rect(margin, current_y, margin + panel_width - 1, current_y + 90);
+    connection_panel = new ConnectionStatusPanel(conn_panel_rect);
+    background_view->AddChild(connection_panel);
+
+    // Performance Indicator Panel (right)
+    BRect perf_panel_rect(margin + panel_width + 10, current_y, margin + fader_width - 1, current_y + 90);
+    performance_panel = new PerformanceIndicatorPanel(perf_panel_rect);
+    background_view->AddChild(performance_panel);
+
+    current_y += 100;  // Panel height + margin
 
     // Calculate optimal window size - ensure both scene buttons and faders are visible
     float scene_buttons_width = scene_x + APC_GUI_BUTTON_WIDTH + 20;
