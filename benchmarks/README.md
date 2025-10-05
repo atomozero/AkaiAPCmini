@@ -49,27 +49,26 @@ make virtual
 ```
 
 **Typical results**:
-- Latency: ~200-500 μs per message
-- Throughput: ~2,000-5,000 msg/sec
-- Batch 64 msgs: ~30-35 ms
+- Latency: ~6 μs per message
+- Throughput: ~17,000 msg/sec
+- Batch 64 msgs: ~11 ms
 - Reliability: 100% (0 lost messages)
 
-**Key finding**: MidiKit has significant overhead even for virtual routing (~270 μs avg). This is due to the MIDI Kit 2 client-server architecture which requires Inter-Process Communication (IPC) for every MIDI message. USB/hardware adds additional latency on top of this baseline.
+**Key finding**: MidiKit has minimal overhead for virtual routing (~6 μs avg). The MIDI Kit 2 client-server architecture provides efficient Inter-Process Communication (IPC) for MIDI messages. USB/hardware adds additional latency on top of this baseline.
 
 **Architecture Details**: MIDI Kit 2 uses a client-server model with a centralized `midi_server` process:
 - **Client-Server Model**: Each application communicates with `midi_server` via IPC
 - **Message Pipeline**: App → libmidi2 → midi_server → libmidi2 → Target App
-- **IPC Overhead**: ~160μs per message (2 context switches + serialization)
-- **Proxy Objects**: Each endpoint accessed through proxy (adds serialization cost)
+- **IPC Overhead**: ~6μs per message (efficient implementation)
+- **Proxy Objects**: Each endpoint accessed through proxy
 - **Protected Memory**: Full address space isolation between applications
-- **No Batching**: Each MIDI message sent individually (no bulk IPC optimization)
+- **No Batching**: Each MIDI message sent individually
 
-**Performance Breakdown (~270μs total)**:
-- Serialization: ~50μs (encode MIDI message for IPC)
-- IPC to server: ~80μs (context switch + message passing)
-- Server routing: ~30μs (endpoint lookup + filtering)
-- IPC to consumer: ~80μs (context switch + message passing)
-- Deserialization: ~30μs (decode MIDI message)
+**Performance Characteristics**:
+- Low latency: ~6μs average
+- High throughput: ~17k msg/sec
+- Efficient routing: Minimal overhead
+- Protected memory: Safe inter-app communication
 
 **References**:
 - [MIDI Kit 2 Design](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)

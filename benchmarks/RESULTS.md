@@ -2,10 +2,12 @@
 
 ## Test Environment
 
-- **OS**: Haiku R1/beta5
+- **OS**: Haiku hrev59032 (Sep 7 2025)
 - **Architecture**: x86_64
+- **CPU**: Intel Core 2 (2 cores)
+- **Memory**: 3.96 GiB
 - **Hardware**: APC Mini USB MIDI Controller (VID: 0x09E8, PID: 0x0028)
-- **Test Date**: 2025-01-05
+- **Test Date**: 2025-01-05 (updated: 2025-10-05)
 
 ---
 
@@ -23,18 +25,18 @@
 
   Latency (per message):
     Min:     -1 μs    # Async timing artifact
-    Avg:    272 μs
-    Max:    601 μs
+    Avg:      6 μs
+    Max:      8 μs
 
 === Throughput Test ===
   Messages sent:     1000
   Messages received: 1000
-  Throughput: 3,888 msg/sec
-  Equivalent: 3.0x MIDI hardware speed
+  Throughput: 16,912 msg/sec
+  Equivalent: 13.0x MIDI hardware speed
 
 === Batch Test (64 messages) ===
-  Batch duration:    30,511 μs
-  Per-message time:  476 μs
+  Batch duration:    10,624 μs
+  Per-message time:    166 μs
 
 === Overall ===
   Success rate: 100.00%
@@ -45,9 +47,9 @@
 
 **Key Findings**:
 
-1. **MidiKit has significant overhead** (~270 μs avg latency)
+1. **MidiKit has low overhead** (~6 μs avg latency)
    - Expected: <10 μs (pure memory copy)
-   - Actual: ~270 μs (27x slower than expected)
+   - Actual: ~6 μs (within expected range)
    - **Root Cause**: MIDI Kit 2 Client-Server Architecture
      - **midi_server**: Centralized server process managing all endpoints
      - **IPC overhead**: Inter-Process Communication for every message
@@ -55,20 +57,13 @@
      - **Proxy objects**: Each endpoint accessed through proxy (serialization cost)
      - **Protected memory**: Full address space isolation between applications
      - **Multiple hops**: Each hop adds serialization + IPC + deserialization overhead
-   - **Architecture breakdown of ~270μs**:
-     - Serialization: ~50μs (encode MIDI message for IPC)
-     - IPC to midi_server: ~80μs (context switch + message passing)
-     - Server routing: ~30μs (endpoint lookup + filtering)
-     - IPC to consumer: ~80μs (context switch + message passing)
-     - Deserialization: ~30μs (decode MIDI message)
    - **References**:
      - [MIDI Kit 2 Design Discussion](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)
      - [Client-Server Architecture](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,3)
      - [OpenBeOS Newsletter #33](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
-2. **Throughput limited** (~3,888 msg/sec)
-   - Expected: >100,000 msg/sec
-   - Actual: ~4k msg/sec (25x slower)
+2. **Throughput** (~16,912 msg/sec)
+   - Actual: ~17k msg/sec
    - **Bottleneck**: IPC serialization and context switching
    - Each message requires:
      - Minimum 2 context switches (app → server → app)
@@ -77,23 +72,22 @@
    - **Serial processing**: Messages processed sequentially through server
    - **No batching**: Each MIDI message sent individually (no bulk IPC)
 
-3. **Batch operations expensive** (30.5 ms for 64 messages)
-   - LED grid update: minimum 30 ms (MidiKit only)
-   - With USB: likely 50-100 ms total
-   - Explains perceived lag in MIDI controllers
+3. **Batch operations** (10.6 ms for 64 messages)
+   - LED grid update: ~11 ms (MidiKit only)
+   - With USB: likely 12-15 ms total
+   - Per-message time: ~166 μs
 
 4. **100% reliability**
    - No lost messages
-   - Routing is reliable, just slow
+   - Routing is reliable and performant
 
 **Implications**:
-- Any Haiku MIDI app using MIDI Kit 2 has this baseline IPC overhead
-- USB MIDI will be slower than pure MidiKit (adds hardware latency on top of IPC)
-- Real-time MIDI applications challenging due to client-server architecture
-- **Known Issue**: Documentation from 2002 noted "playback really lags" with rapid MIDI events
-- **Architectural limitation**: IPC overhead cannot be eliminated without redesign
-- **Workaround**: Direct USB Raw access bypasses midi_server entirely (main app approach)
-- **Trade-off**: Protected memory isolation vs performance
+- Haiku MIDI Kit 2 has minimal IPC overhead (~6 μs)
+- USB MIDI will add hardware latency on top of MidiKit baseline
+- Real-time MIDI applications feasible with current architecture
+- MidiKit provides good balance of protected memory isolation and performance
+- **Workaround**: Direct USB Raw access can bypass midi_server for specialized needs (main app approach)
+- **Trade-off**: Protected memory isolation vs direct hardware control
 
 ---
 
