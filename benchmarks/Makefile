@@ -1,5 +1,17 @@
 # Makefile for Haiku MIDI Performance Benchmarks
 # Independent project for testing MIDI subsystem performance
+#
+# ⚠️  IMPORTANT: This MUST be compiled on Haiku OS, not WSL/Linux
+# The code uses Haiku-specific APIs (Be API, MIDI Kit) that don't exist on other systems
+
+# Detect if running on WSL/Linux
+UNAME_S := $(shell uname -s)
+ifneq ($(findstring Linux,$(UNAME_S)),)
+    $(error ❌ ERROR: This benchmark must be compiled on Haiku OS, not WSL/Linux. Use Haiku native terminal.)
+endif
+ifneq ($(UNAME_S),Haiku)
+    $(warning ⚠️  Warning: Expected OS is Haiku, detected: $(UNAME_S))
+endif
 
 # Project info
 PROJECT_NAME = haiku-midi-benchmarks

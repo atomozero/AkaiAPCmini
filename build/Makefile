@@ -1,5 +1,17 @@
 # Makefile for APC Mini Test Application - Haiku OS
 # Compatible with GCC on Haiku R1/beta5+
+#
+# ⚠️  IMPORTANT: This MUST be compiled on Haiku OS, not WSL/Linux
+# The application uses Haiku-specific APIs (Be API, USB Raw, MIDI Kit)
+
+# Detect if running on WSL/Linux
+UNAME_S := $(shell uname -s)
+ifneq ($(findstring Linux,$(UNAME_S)),)
+    $(error ❌ ERROR: This application must be compiled on Haiku OS, not WSL/Linux. Transfer to Haiku VM and compile there.)
+endif
+ifneq ($(UNAME_S),Haiku)
+    $(warning ⚠️  Warning: Expected OS is Haiku, detected: $(UNAME_S))
+endif
 
 # Application settings
 APP_NAME = apc_mini_test
