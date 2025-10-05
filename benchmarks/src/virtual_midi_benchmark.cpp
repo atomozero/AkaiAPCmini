@@ -108,6 +108,65 @@ struct BenchmarkStats {
     }
 };
 
+// Utility: Resource monitoring
+struct ResourceSnapshot {
+    size_t memory_bytes;
+    int thread_count;
+    bigtime_t timestamp;
+
+    static ResourceSnapshot Capture() {
+        ResourceSnapshot snap;
+        snap.timestamp = system_time();
+
+        // Get team info for memory usage
+        team_info info;
+        if (get_team_info(B_CURRENT_TEAM, &info) == B_OK) {
+            // Approximate memory usage (Haiku doesn't expose detailed memory stats easily)
+            snap.memory_bytes = 0; // Would need /proc or kernel API
+            snap.thread_count = 0;
+
+            // Count threads in this team
+            int32 cookie = 0;
+            thread_info tinfo;
+            while (get_next_thread_info(info.team, &cookie, &tinfo) == B_OK) {
+                snap.thread_count++;
+            }
+        } else {
+            snap.memory_bytes = 0;
+            snap.thread_count = 0;
+        }
+
+        return snap;
+    }
+
+    void Print(const char* label) const {
+        if (g_log_level >= VERBOSE) {
+            printf("%s:\n", label);
+            printf("  Threads: %d\n", thread_count);
+            printf("  Timestamp: %ld ms\n", timestamp / 1000);
+        }
+    }
+
+    void Compare(const ResourceSnapshot& before, const char* label) const {
+        if (g_log_level >= VERBOSE) {
+            printf("\n%s:\n", label);
+            printf("  Threads: %d → %d (%+d)\n",
+                   before.thread_count, thread_count,
+                   thread_count - before.thread_count);
+            bigtime_t duration = timestamp - before.timestamp;
+            printf("  Duration: %ld ms\n", duration / 1000);
+
+            if (thread_count > before.thread_count) {
+                printf("  ⚠️ Thread count increased (potential leak)\n");
+            } else if (thread_count < before.thread_count) {
+                printf("  ✓ Thread count decreased (cleanup OK)\n");
+            } else {
+                printf("  ✓ Thread count stable\n");
+            }
+        }
+    }
+};
+
 // Utility: Print ASCII histogram
 void PrintHistogram(const std::vector<bigtime_t>& samples, int bins = 20) {
     if (samples.empty()) {
@@ -200,6 +259,99 @@ void ExportCSV(const char* filename, const char* test_name, const BenchmarkStats
 
     fclose(f);
     LOG_VERBOSE("Exported samples to %s", filename);
+}
+
+// Utility: Save baseline for regression detection
+void SaveBaseline(const char* filename, const BenchmarkStats& stats, const char* test_name) {
+    FILE* f = fopen(filename, "w");
+    if (!f) {
+        printf("ERROR: Cannot write baseline to %s\n", filename);
+        return;
+    }
+
+    fprintf(f, "# Benchmark Baseline - %s\n", test_name);
+    fprintf(f, "# Generated: %ld\n", system_time());
+    fprintf(f, "min_us=%ld\n", stats.min_latency_us == (bigtime_t)UINT64_MAX ? 0 : stats.min_latency_us);
+    fprintf(f, "max_us=%ld\n", stats.max_latency_us);
+    fprintf(f, "avg_us=%.2f\n", stats.GetAverage());
+    fprintf(f, "stddev_us=%.2f\n", stats.GetStdDev());
+    fprintf(f, "p50_us=%ld\n", stats.GetPercentile(0.50));
+    fprintf(f, "p95_us=%ld\n", stats.GetPercentile(0.95));
+    fprintf(f, "p99_us=%ld\n", stats.GetPercentile(0.99));
+    fprintf(f, "samples=%zu\n", stats.latency_samples.size());
+
+    fclose(f);
+    if (g_log_level >= NORMAL) {
+        printf("\n✓ Baseline saved to %s\n", filename);
+    }
+}
+
+// Utility: Load and compare with baseline
+bool CompareWithBaseline(const char* filename, const BenchmarkStats& current, const char* test_name) {
+    FILE* f = fopen(filename, "r");
+    if (!f) {
+        if (g_log_level >= VERBOSE) {
+            printf("No baseline found at %s (will create on --save-baseline)\n", filename);
+        }
+        return false;
+    }
+
+    // Parse baseline file
+    double baseline_avg = 0, baseline_stddev = 0;
+    bigtime_t baseline_p95 = 0, baseline_p99 = 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#') continue; // Skip comments
+
+        if (sscanf(line, "avg_us=%lf", &baseline_avg) == 1) continue;
+        if (sscanf(line, "stddev_us=%lf", &baseline_stddev) == 1) continue;
+        if (sscanf(line, "p95_us=%ld", &baseline_p95) == 1) continue;
+        if (sscanf(line, "p99_us=%ld", &baseline_p99) == 1) continue;
+    }
+    fclose(f);
+
+    // Compare with current results
+    double current_avg = current.GetAverage();
+    double current_stddev = current.GetStdDev();
+    bigtime_t current_p95 = current.GetPercentile(0.95);
+    bigtime_t current_p99 = current.GetPercentile(0.99);
+
+    printf("\n=== Regression Analysis: %s ===\n", test_name);
+    printf("Metric       | Baseline  | Current   | Change\n");
+    printf("-------------|-----------|-----------|----------\n");
+
+    double avg_change = ((current_avg - baseline_avg) / baseline_avg) * 100.0;
+    printf("Avg latency  | %8.2f μs | %8.2f μs | %+6.1f%%\n",
+           baseline_avg, current_avg, avg_change);
+
+    double stddev_change = ((current_stddev - baseline_stddev) / baseline_stddev) * 100.0;
+    printf("Std dev      | %8.2f μs | %8.2f μs | %+6.1f%%\n",
+           baseline_stddev, current_stddev, stddev_change);
+
+    double p95_change = ((double)(current_p95 - baseline_p95) / baseline_p95) * 100.0;
+    printf("P95 latency  | %8ld μs | %8ld μs | %+6.1f%%\n",
+           baseline_p95, current_p95, p95_change);
+
+    double p99_change = ((double)(current_p99 - baseline_p99) / baseline_p99) * 100.0;
+    printf("P99 latency  | %8ld μs | %8ld μs | %+6.1f%%\n",
+           baseline_p99, current_p99, p99_change);
+
+    // Detection thresholds
+    const double REGRESSION_THRESHOLD = 10.0; // 10% slower = regression
+    const double IMPROVEMENT_THRESHOLD = -10.0; // 10% faster = improvement
+
+    printf("\n");
+    if (avg_change > REGRESSION_THRESHOLD) {
+        printf("⚠️ REGRESSION DETECTED: Average latency %.1f%% slower\n", avg_change);
+        return false;
+    } else if (avg_change < IMPROVEMENT_THRESHOLD) {
+        printf("✅ IMPROVEMENT: Average latency %.1f%% faster\n", -avg_change);
+    } else {
+        printf("✓ Performance stable (within ±10%% threshold)\n");
+    }
+
+    return true;
 }
 
 // Virtual MIDI Consumer - Receives messages and measures latency
@@ -308,10 +460,15 @@ public:
     void RunBurstStressTest();
     void PrintSummary();
 
+    // Expose stats for baseline comparison
+    const BenchmarkStats& GetOverallStats() const { return overall_stats; }
+    const BenchmarkStats& GetLatencyTestStats() const { return latency_test_stats; }
+
 private:
     VirtualMIDIProducer* producer;
     VirtualMIDIConsumer* consumer;
     BenchmarkStats overall_stats;
+    BenchmarkStats latency_test_stats; // For baseline comparison
 
     void WarmUp();
     void ResetStats();
@@ -396,12 +553,48 @@ void VirtualMIDIBenchmark::Shutdown()
 
 void VirtualMIDIBenchmark::WarmUp()
 {
-    printf("Warming up (%d iterations)...\n", WARMUP_ITERATIONS);
+    if (g_log_level >= VERBOSE) {
+        printf("Analyzing warmup period (%d iterations)...\n", WARMUP_ITERATIONS);
+    } else {
+        printf("Warming up (%d iterations)...\n", WARMUP_ITERATIONS);
+    }
+
+    BenchmarkStats warmup_stats;
+
+    bigtime_t warmup_start = system_time();
     for (int i = 0; i < WARMUP_ITERATIONS; i++) {
         producer->SendTestNoteOn(0, 60, 127);
         snooze(100); // 100μs delay
     }
     snooze(10000); // Wait 10ms for messages to settle
+    bigtime_t warmup_duration = system_time() - warmup_start;
+
+    // Capture warmup stats
+    warmup_stats = consumer->GetStats();
+
+    if (g_log_level >= VERBOSE && warmup_stats.latency_samples.size() > 0) {
+        printf("\nWarmup Phase Analysis:\n");
+        printf("  Messages: %zu\n", warmup_stats.latency_samples.size());
+        printf("  Duration: %ld ms\n", warmup_duration / 1000);
+        printf("  Avg latency: %.2f μs\n", warmup_stats.GetAverage());
+        printf("  Min latency: %ld μs\n",
+               warmup_stats.min_latency_us == (bigtime_t)UINT64_MAX ? 0 : warmup_stats.min_latency_us);
+        printf("  Max latency: %ld μs\n", warmup_stats.max_latency_us);
+
+        // Compare first vs last messages
+        if (warmup_stats.latency_samples.size() >= 2) {
+            bigtime_t first = warmup_stats.latency_samples[0];
+            bigtime_t last = warmup_stats.latency_samples[warmup_stats.latency_samples.size() - 1];
+            printf("  First message: %ld μs, Last message: %ld μs\n", first, last);
+            if (first > last * 1.5) {
+                printf("  ⚠️ Warmup effect detected (first msg %.1fx slower)\n",
+                       (double)first / last);
+            } else {
+                printf("  ✓ Consistent performance (no significant warmup)\n");
+            }
+        }
+        printf("\n");
+    }
 
     // Reset stats after warmup
     producer->ResetStats();
@@ -441,6 +634,7 @@ void VirtualMIDIBenchmark::RunLatencyTest()
 
     // Get stats from consumer
     const BenchmarkStats& stats = consumer->GetStats();
+    latency_test_stats = stats; // Save for baseline comparison
     uint32_t sent = producer->GetMessagesSent();
     uint32_t received = consumer->GetMessagesReceived();
 
@@ -801,8 +995,11 @@ int main(int argc, char* argv[])
     bool run_batch_optimization = false;
     bool run_message_types = false;
     bool run_burst_stress = false;
+    bool save_baseline = false;
+    bool compare_baseline = false;
     const char* json_file = "results/virtual_benchmark.json";
     const char* csv_file = "results/virtual_benchmark.csv";
+    const char* baseline_file = "results/baseline_latency.txt";
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -819,6 +1016,8 @@ int main(int argc, char* argv[])
             printf("  --message-types     Test all MIDI message types\n");
             printf("  --burst-stress      Run burst stress test\n");
             printf("  --all-tests         Run all optional tests\n");
+            printf("  --save-baseline     Save results as baseline for regression detection\n");
+            printf("  --compare-baseline  Compare with saved baseline\n");
             printf("  --help, -h          Show this help message\n\n");
             printf("Examples:\n");
             printf("  %s --verbose --json\n", argv[0]);
@@ -851,6 +1050,10 @@ int main(int argc, char* argv[])
             run_batch_optimization = true;
             run_message_types = true;
             run_burst_stress = true;
+        } else if (strcmp(argv[i], "--save-baseline") == 0) {
+            save_baseline = true;
+        } else if (strcmp(argv[i], "--compare-baseline") == 0) {
+            compare_baseline = true;
         } else {
             printf("Unknown option: %s\n", argv[i]);
             printf("Use --help for usage information\n");
@@ -859,6 +1062,10 @@ int main(int argc, char* argv[])
     }
 
     VirtualMIDIBenchmark benchmark;
+
+    // Capture initial resource state
+    ResourceSnapshot snapshot_start = ResourceSnapshot::Capture();
+    snapshot_start.Print("Initial Resources");
 
     if (!benchmark.Initialize()) {
         printf("Benchmark initialization failed\n");
@@ -889,6 +1096,19 @@ int main(int argc, char* argv[])
 
     benchmark.PrintSummary();
     benchmark.Shutdown();
+
+    // Capture final resource state
+    ResourceSnapshot snapshot_end = ResourceSnapshot::Capture();
+    snapshot_end.Compare(snapshot_start, "Resource Usage Summary");
+
+    // Save or compare baseline
+    if (save_baseline) {
+        SaveBaseline(baseline_file, benchmark.GetLatencyTestStats(), "Latency Test");
+    }
+
+    if (compare_baseline) {
+        CompareWithBaseline(baseline_file, benchmark.GetLatencyTestStats(), "Latency Test");
+    }
 
     // Export results if requested
     if (export_json || export_csv) {
