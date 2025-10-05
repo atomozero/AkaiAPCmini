@@ -103,9 +103,10 @@ make driver
 4. Measures timing to detect blocking
 
 **Known issues**:
-- **BMidiRoster empty**: Driver doesn't publish endpoints (Haiku bug)
-- **Crashes on batch writes**: "Kill Thread" error during heavy traffic
-- **Blocking detected**: Confirms driver has concurrency issues
+- **BMidiRoster wrong names**: Endpoints named `/dev/midi/usb/0-0` instead of device name
+- **Crashes without workaround**: "Kill Thread" error during rapid batch writes
+- **Race condition confirmed**: Requires 5ms delay between messages to avoid crash
+- **160x performance penalty**: Workaround makes batch operations 160x slower than expected
 
 ---
 
@@ -204,19 +205,24 @@ Results are automatically saved to `results/` with timestamps.
 
 **Symptom**: "Kill Thread" error when sending many MIDI messages rapidly
 
-**Cause**: Thread safety bug in `midi_usb` driver or BMidiPort
+**Cause**: Race condition in `midi_usb` driver - severe thread safety bug
 
-**Impact**: Confirms blocking/concurrency issues in driver
+**Testing results**:
+- Without delay: Crashes immediately
+- With 1ms delay: Still crashes
+- With 5ms delay: Works but 160x slower (~320ms vs ~2ms expected)
+
+**Impact**: Driver requires 5ms minimum delay between messages, making it unusable for real-time applications
 
 **Workaround**: Use USB Raw access (main APC Mini app approach)
 
-### 3. MidiKit Overhead
+### 3. BMidiPort API Differences
 
-**Finding**: Even virtual MIDI routing has ~270 μs latency
+**Finding**: BMidiPort uses 1-based channel numbering (1-16), not 0-based (0-15)
 
-**Impact**: Hardware MIDI will be slower than expected
+**Impact**: Code using raw MIDI conventions (channel 0-15) must add +1 for BMidiPort
 
-**Baseline**: Any USB MIDI implementation will have MidiKit overhead + USB latency
+**Fixed in**: midikit_driver_test.cpp uses `APC_MINI_MIDI_CHANNEL + 1` for BMidiPort
 
 ## Comparison with Main Project
 

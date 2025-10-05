@@ -264,9 +264,11 @@ void MidiKitDriverTest::SendBatchLEDCommands(int batch_num)
         if (use_direct_port) {
             // Direct port access using BMidiPort
             // BMidiPort uses semantic methods (NoteOn, ControlChange, etc.)
-            midi_port->NoteOn(APC_MINI_MIDI_CHANNEL, note, color, B_NOW);
+            // NOTE: BMidiPort uses 1-based channel numbering (1-16), not 0-based (0-15)
+            midi_port->NoteOn(APC_MINI_MIDI_CHANNEL + 1, note, color, B_NOW);
         } else {
             // Use BMidiLocalProducer::SprayNoteOn (MIDI Kit 2 routing)
+            // NOTE: BMidiLocalProducer uses 0-based channel numbering (0-15)
             local_producer->SprayNoteOn(APC_MINI_MIDI_CHANNEL, note, color, system_time());
         }
         stats.messages_sent++;

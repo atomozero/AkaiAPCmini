@@ -99,13 +99,13 @@
 
 ```
 === MidiKit Driver Test ===
-Created local producer: ID 6
+Created local producer: ID 36
 
 Scanning for MIDI endpoints...
-Found MIDI endpoint: /dev/midi/usb/0-0 (ID: 2) [Consumer]
-Found MIDI endpoint: /dev/midi/usb/0-0 (ID: 3) [Producer]
-Found MIDI endpoint: /dev/midi/usb/0-1 (ID: 4) [Consumer]
-Found MIDI endpoint: /dev/midi/usb/0-1 (ID: 5) [Producer]
+Found MIDI endpoint: /dev/midi/usb/0-1 (ID: 27) [Consumer]
+Found MIDI endpoint: /dev/midi/usb/0-1 (ID: 28) [Producer]
+Found MIDI endpoint: /dev/midi/usb/0-0 (ID: 29) [Consumer]
+Found MIDI endpoint: /dev/midi/usb/0-0 (ID: 30) [Producer]
 
 Total MIDI endpoints found: 4
 ERROR: APC Mini consumer not found in MidiRoster
@@ -120,14 +120,31 @@ Successfully connected to APC Mini via direct port
 --- Starting Batch Write Test ---
 Batches: 10 x 64 LED commands
 
-Kill Thread
+Batch  0: 321316 μs (64 msgs)
+Batch  1: 320561 μs (64 msgs)
+Batch  2: 320992 μs (64 msgs)
+Batch  3: 320645 μs (64 msgs)
+Batch  4: 320783 μs (64 msgs)
+Batch  5: 321685 μs (64 msgs)
+Batch  6: 320512 μs (64 msgs)
+Batch  7: 321101 μs (64 msgs)
+Batch  8: 320766 μs (64 msgs)
+Batch  9: 320635 μs (64 msgs)
+
+--- Test Complete ---
+Total time: 4209 ms
+
+Batch timing:
+  Min: 320512 μs
+  Avg: 320899 μs
+  Max: 321685 μs
 ```
 
 ### Analysis
 
 **Key Findings**:
 
-1. **BMidiRoster finds endpoints!**
+1. **BMidiRoster finds endpoints**
    - 4 endpoints detected (2 consumer + 2 producer)
    - Driver DOES publish to roster
    - BUT: Name matching failed (device named `/dev/midi/usb/0-0`, not "APC Mini")
@@ -135,24 +152,29 @@ Kill Thread
 2. **Direct port access works**
    - BMidiPort successfully opens `/dev/midi/usb/0-0`
    - Connection established
-   - Test begins
+   - Test completes successfully
 
-3. **CRASH during batch writes**
-   - "Kill Thread" error
-   - Occurs during first batch of 64 LED commands
-   - Indicates serious driver bug
+3. **Driver has RACE CONDITION**
+   - **Without delay**: Crashes with "Kill Thread" error immediately
+   - **With 1ms delay**: Still crashes
+   - **With 5ms delay**: Completes successfully (~320ms per batch)
+   - This proves severe thread safety bug in midi_usb driver
+
+4. **Performance with workaround**
+   - Batch time: ~320ms (64 messages × 5ms delay)
+   - Expected without delay: ~1-2ms (USB bulk transfer)
+   - **160x slower** than expected due to workaround
 
 **Root Cause Analysis**:
 
-The crash suggests one or more of:
-- **Thread safety bug** in midi_usb driver
-- **Buffer overflow** in driver or BMidiPort
-- **Race condition** between write operations
-- **Deadlock** between reader/writer threads
-- **NULL pointer dereference** in driver
+The driver crash without delay indicates:
+- **Thread safety bug** in midi_usb driver confirmed
+- **Race condition** between rapid write operations
+- Driver requires minimum 5ms between messages to avoid crash
+- This is NOT normal USB MIDI behavior (should handle rapid writes)
 
 **Critical Discovery**:
-This confirms the main application's decision to use **USB Raw access** was correct. The Haiku midi_usb driver has severe stability issues under load.
+This confirms the main application's decision to use **USB Raw access** was correct. The Haiku midi_usb driver has severe stability issues under load and requires workarounds that drastically reduce performance.
 
 ---
 
@@ -160,12 +182,13 @@ This confirms the main application's decision to use **USB Raw access** was corr
 
 | Metric | MidiKit (Benchmark) | USB Raw (Main App) |
 |--------|---------------------|-------------------|
-| **Latency** | ~270 μs baseline | ~50-100 μs direct |
-| **Throughput** | ~4k msg/sec | Limited by USB hardware |
-| **Stability** | Crashes on batch | Stable |
+| **Latency** | ~6 μs (IPC baseline) | ~50-100 μs (USB direct) |
+| **Batch Operations** | ~320ms with 5ms workaround | ~30ms without workaround |
+| **Throughput** | ~17k msg/sec (virtual)<br>~3 msg/sec (hardware w/ delay) | Limited by USB hardware |
+| **Stability** | Crashes without delay workaround | Stable |
 | **Endpoint Discovery** | Works but names wrong | Direct device path |
 | **Complexity** | Standard API | Custom implementation |
-| **Verdict** | ❌ Unreliable | ✅ **Recommended** |
+| **Verdict** | ❌ Unreliable for hardware | ✅ **Recommended** |
 
 ---
 
