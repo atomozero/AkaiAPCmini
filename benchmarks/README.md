@@ -45,14 +45,24 @@ benchmarks/
 **Run**:
 ```bash
 make virtual
-./virtual_midi_benchmark
+./virtual_midi_benchmark [options]
+
+# Options:
+#   --verbose, -v       Show histogram and detailed statistics
+#   --debug, -d         Enable debug output
+#   --json [file]       Export results to JSON
+#   --csv [file]        Export results to CSV
+#   --batch-opt         Run batch size optimization test
+#   --help, -h          Show help
 ```
 
 **Typical results**:
-- Latency: ~6 μs per message
+- Latency: ~6 μs per message (min/p50/avg/p95/p99/max)
+- Standard deviation: ~2 μs (low jitter)
 - Throughput: ~17,000 msg/sec
 - Batch 64 msgs: ~11 ms
 - Reliability: 100% (0 lost messages)
+- Optimal batch size: 64-128 messages
 
 **Key finding**: MidiKit has minimal overhead for virtual routing (~6 μs avg). The MIDI Kit 2 client-server architecture provides efficient Inter-Process Communication (IPC) for MIDI messages. USB/hardware adds additional latency on top of this baseline.
 
