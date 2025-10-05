@@ -138,6 +138,7 @@ void RGBPad::MouseDown(BPoint /*where*/)
 {
     mouse_down = true;
     SetPressed(true);
+    Invalidate(); // Force immediate visual update
     SendPadMessage();
 }
 
@@ -146,6 +147,7 @@ void RGBPad::MouseUp(BPoint /*where*/)
     if (mouse_down) {
         mouse_down = false;
         SetPressed(false);
+        Invalidate(); // Force immediate visual update
 
         BMessage msg(MSG_PAD_PRESSED);
         msg.AddInt32("pad_index", pad_index);
@@ -953,6 +955,7 @@ void ControlButton::MouseDown(BPoint /*where*/)
 {
     mouse_down = true;
     SetPressed(true);
+    Invalidate(); // Force immediate visual update
     SendButtonMessage();
 }
 
@@ -963,6 +966,7 @@ void ControlButton::MouseUp(BPoint /*where*/)
         if (button_type != BUTTON_SHIFT) {
             SetPressed(false);
         }
+        Invalidate(); // Force immediate visual update
 
         // Send button release message
         BMessage msg;
