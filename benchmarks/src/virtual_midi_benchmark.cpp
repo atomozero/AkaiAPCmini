@@ -452,7 +452,7 @@ void VirtualMIDIBenchmark::RunLatencyTest()
 
     if (received > 0) {
         printf("\nLatency (per message):\n");
-        bigtime_t min = (stats.min_latency_us == UINT64_MAX) ? 0 : stats.min_latency_us;
+        bigtime_t min = (stats.min_latency_us == (bigtime_t)UINT64_MAX) ? 0 : stats.min_latency_us;
         printf("  Min:    %6ld μs\n", min);
         printf("  P50:    %6ld μs  (median)\n", stats.GetPercentile(0.50));
         printf("  Avg:    %6.2f μs\n", stats.GetAverage());
