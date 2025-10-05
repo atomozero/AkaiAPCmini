@@ -562,8 +562,9 @@ void VirtualMIDIBenchmark::RunBatchOptimizationTest()
     printf("Batch Size | Total Time | Avg Time/Msg | Throughput\n");
     printf("-----------|------------|--------------|-------------\n");
 
-    bigtime_t best_time_per_msg = UINT64_MAX;
+    double best_throughput = 0.0;
     int best_batch_size = 0;
+    bigtime_t best_time_per_msg = 0;
 
     for (int i = 0; i < num_sizes; i++) {
         int size = batch_sizes[i];
@@ -587,17 +588,18 @@ void VirtualMIDIBenchmark::RunBatchOptimizationTest()
         printf("%10d | %8ld μs | %10ld μs | %8.0f msg/s\n",
                size, batch_duration, time_per_msg, msg_per_sec);
 
-        if (time_per_msg < best_time_per_msg) {
-            best_time_per_msg = time_per_msg;
+        if (msg_per_sec > best_throughput) {
+            best_throughput = msg_per_sec;
             best_batch_size = size;
+            best_time_per_msg = time_per_msg;
         }
 
         overall_stats.messages_sent += size;
         overall_stats.messages_received += consumer->GetMessagesReceived();
     }
 
-    printf("\n✓ Optimal batch size: %d messages (%.0f μs per message)\n",
-           best_batch_size, (double)best_time_per_msg);
+    printf("\n✓ Optimal batch size: %d messages (%.0f μs per message, %.0f msg/s)\n",
+           best_batch_size, (double)best_time_per_msg, best_throughput);
     printf("  Recommendation: Use batch sizes >= %d for best throughput\n", best_batch_size);
 }
 
@@ -710,9 +712,10 @@ void VirtualMIDIBenchmark::RunBurstStressTest()
     printf("Burst # | Messages | Duration  | Avg Time/Msg | Peak Rate\n");
     printf("--------|----------|-----------|--------------|------------\n");
 
-    bigtime_t min_burst = UINT64_MAX;
+    bigtime_t min_burst = 0;
     bigtime_t max_burst = 0;
     bigtime_t total_burst_time = 0;
+    bool first_burst = true;
 
     for (int burst = 0; burst < num_bursts; burst++) {
         producer->ResetStats();
@@ -737,7 +740,10 @@ void VirtualMIDIBenchmark::RunBurstStressTest()
         printf("%7d | %8d | %7ld μs | %10ld μs | %8.0f msg/s\n",
                burst, received, burst_duration, avg_per_msg, peak_rate);
 
-        if (burst_duration < min_burst) min_burst = burst_duration;
+        if (first_burst || burst_duration < min_burst) {
+            min_burst = burst_duration;
+            first_burst = false;
+        }
         if (burst_duration > max_burst) max_burst = burst_duration;
         total_burst_time += burst_duration;
 
