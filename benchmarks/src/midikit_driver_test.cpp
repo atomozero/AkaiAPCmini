@@ -385,7 +385,8 @@ void MidiKitDriverTest::PrintResults()
 
     if (stats.batches_completed > 0) {
         printf("\nBatch timing:\n");
-        printf("  Min:    %6ld μs\n", stats.min_batch_time_us);
+        bigtime_t min = (stats.min_batch_time_us == UINT64_MAX) ? 0 : stats.min_batch_time_us;
+        printf("  Min:    %6ld μs\n", min);
         printf("  P50:    %6ld μs  (median)\n", stats.GetPercentile(0.50));
         printf("  Avg:    %6.2f μs\n", stats.GetAverage());
         printf("  P95:    %6ld μs\n", stats.GetPercentile(0.95));
