@@ -61,7 +61,9 @@ ConnectionStatusPanel::~ConnectionStatusPanel()
 void ConnectionStatusPanel::AttachedToWindow()
 {
     BView::AttachedToWindow();
-    SetPulseRate(500000); // Update every 500ms
+    if (Window()) {
+        Window()->SetPulseRate(500000); // Update every 500ms
+    }
 }
 
 void ConnectionStatusPanel::Pulse()
@@ -206,7 +208,9 @@ PerformanceIndicatorPanel::~PerformanceIndicatorPanel()
 void PerformanceIndicatorPanel::AttachedToWindow()
 {
     BView::AttachedToWindow();
-    SetPulseRate(100000); // Update every 100ms
+    if (Window()) {
+        Window()->SetPulseRate(100000); // Update every 100ms
+    }
 }
 
 void PerformanceIndicatorPanel::Pulse()
