@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <math.h>
 #include <vector>
 #include <algorithm>
 #include <OS.h>
