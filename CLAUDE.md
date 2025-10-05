@@ -65,11 +65,16 @@ The application uses a **primary USB Raw + fallback MIDI** architecture:
 - **examples/**: Example utilities (led_patterns, midi_monitor)
 - **build/**: Makefile and build configuration
 
-### Documentation
+### User Documentation
 - **docs/README.md**: Comprehensive user documentation
 - **docs/INSTALL.md**: Installation instructions
 - **docs/TROUBLESHOOTING.md**: Common issues and solutions
-- **FADER_MAPPING_MIGRATION.md**: Critical fix documentation for fader CC mapping
+
+### Technical Documentation
+- **docs/technical/THREAD_SAFETY.md**: USB reader thread synchronization implementation
+- **docs/technical/USB_SYNCHRONIZATION.md**: Atomic operations and semaphore solution
+- **docs/technical/FADER_MAPPING_FIX.md**: Critical fix for fader CC mapping
+- **docs/technical/DRIVER_TESTING.md**: MidiKit driver testing methodology
 
 ### Benchmarks (Separate Project)
 - **benchmarks/**: Independent performance benchmark suite

@@ -54,7 +54,16 @@ make virtual
 - Batch 64 msgs: ~30-35 ms
 - Reliability: 100% (0 lost messages)
 
-**Key finding**: MidiKit has significant overhead even for virtual routing (~270 μs avg). USB/hardware adds additional latency on top of this baseline.
+**Key finding**: MidiKit has significant overhead even for virtual routing (~270 μs avg). This is due to the MIDI Kit 2 architecture which uses a centralized "Midi Roster" for endpoint management, real-time notifications, and filter support. USB/hardware adds additional latency on top of this baseline.
+
+**Architecture Details**: MIDI Kit 2 uses a producer-consumer model with centralized routing through the Midi Roster. Each message passes through multiple synchronization points:
+- Producer → Midi Roster → Filter (optional) → Consumer
+- Real-time endpoint discovery notifications
+- Thread synchronization at each hop
+
+**References**:
+- [MIDI Kit 2 Design](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)
+- [OpenBeOS Newsletter #33](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
 ---
 

@@ -48,7 +48,12 @@
 1. **MidiKit has significant overhead** (~270 μs avg latency)
    - Expected: <10 μs (pure memory copy)
    - Actual: ~270 μs (27x slower than expected)
-   - Cause: Routing architecture, thread synchronization
+   - **Root Cause**: MIDI Kit 2 Routing Architecture
+     - Uses centralized "Midi Roster" for endpoint management
+     - Real-time notifications for endpoint changes
+     - Filter endpoint support adds processing overhead
+     - Thread synchronization between producers and consumers
+   - **Reference**: [OpenBeOS MIDI Kit 2 Design](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
 2. **Throughput limited** (~3,888 msg/sec)
    - Expected: >100,000 msg/sec
@@ -65,9 +70,11 @@
    - Routing is reliable, just slow
 
 **Implications**:
-- Any Haiku MIDI app has this baseline overhead
-- USB MIDI will be slower than pure MidiKit
-- Real-time MIDI applications challenging on current MidiKit
+- Any Haiku MIDI app using MIDI Kit 2 has this baseline overhead
+- USB MIDI will be slower than pure MidiKit (adds hardware latency)
+- Real-time MIDI applications challenging on current MidiKit architecture
+- **Known Issue**: Documentation from 2002 noted "playback really lags" with rapid MIDI events
+- Filter endpoints and routing notifications contribute to latency
 
 ---
 
@@ -174,15 +181,23 @@ This confirms the main application's decision to use **USB Raw access** was corr
    - Likely race condition in batch write path
    - See: `midikit_driver_test.cpp` reproducer
 
-2. **Optimize MidiKit routing**
+2. **Optimize MidiKit routing architecture**
    - 270 μs per message too high
    - Target: <50 μs for virtual routing
-   - Investigate thread synchronization overhead
+   - **Investigate**:
+     - Midi Roster centralization overhead
+     - Real-time notification mechanism cost
+     - Filter endpoint processing overhead
+     - Producer-to-consumer thread synchronization
+   - **References**:
+     - [MIDI Kit 2 Design Discussion](https://www.freelists.org/post/openbeos-midi/Midi2-todo-List,1)
+     - [OpenBeOS Newsletter #33](https://www.haiku-os.org/legacy-docs/openbeosnewsletter/nsl33.html)
 
 3. **Fix endpoint naming**
    - Devices show as `/dev/midi/usb/0-0` in roster
    - Should show actual device name
    - Makes device discovery difficult
+   - MIDI Kit 1 vs MIDI Kit 2 compatibility issue
 
 ---
 

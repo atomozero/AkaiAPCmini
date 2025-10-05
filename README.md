@@ -79,13 +79,20 @@ make detect-midi
 
 ## Documentation
 
-Comprehensive documentation is available in the `docs/` directory:
+### User Documentation
+- **[User Guide](docs/README.md)**: Comprehensive usage guide
+- **[Installation](docs/INSTALL.md)**: Setup and installation instructions
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Common issues and solutions
 
-- **[README.md](docs/README.md)**: Detailed user guide
-- **[INSTALL.md](docs/INSTALL.md)**: Installation instructions
-- **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: Common issues and solutions
-- **[FADER_MAPPING_MIGRATION.md](FADER_MAPPING_MIGRATION.md)**: Fader mapping details
-- **[benchmarks/README.md](benchmarks/README.md)**: Performance benchmark suite (separate project)
+### Technical Documentation
+- **[Thread Safety](docs/technical/THREAD_SAFETY.md)**: USB reader thread synchronization
+- **[USB Synchronization](docs/technical/USB_SYNCHRONIZATION.md)**: Atomic operations implementation
+- **[Fader Mapping Fix](docs/technical/FADER_MAPPING_FIX.md)**: CC mapping correction details
+- **[Driver Testing](docs/technical/DRIVER_TESTING.md)**: MidiKit driver testing methodology
+
+### Performance Benchmarks
+- **[Benchmark Suite](benchmarks/README.md)**: Independent MIDI performance testing project
+- **[Results & Analysis](benchmarks/RESULTS.md)**: Haiku MIDI stack performance analysis
 
 ## Interactive Commands
 
