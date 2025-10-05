@@ -18,6 +18,9 @@ SOURCES = $(SRC_DIR)/apc_mini_test.cpp \
 # MidiKit driver test (pure driver testing, no USB Raw)
 MIDIKIT_TEST_SOURCES = $(SRC_DIR)/midikit_driver_test.cpp
 
+# Virtual MIDI benchmark (pure MidiKit, no hardware)
+VIRTUAL_BENCHMARK_SOURCES = $(SRC_DIR)/virtual_midi_benchmark.cpp
+
 # GUI application sources
 GUI_SOURCES = $(SRC_DIR)/apc_mini_gui.cpp \
               $(SRC_DIR)/apc_mini_gui_app.cpp \
@@ -33,6 +36,7 @@ EXAMPLE_SOURCES = $(EXAMPLES_DIR)/led_patterns.cpp \
 # Object files
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 MIDIKIT_TEST_OBJECTS = $(MIDIKIT_TEST_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+VIRTUAL_BENCHMARK_OBJECTS = $(VIRTUAL_BENCHMARK_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 GUI_OBJECTS = $(GUI_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 EXAMPLE_OBJECTS = $(EXAMPLE_SOURCES:$(EXAMPLES_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
@@ -132,6 +136,19 @@ $(MIDIKIT_TEST_NAME): $(MIDIKIT_TEST_OBJECTS) | $(OBJ_DIR)
 	@echo "Purpose: Test if blocking occurs in Haiku midi_usb driver"
 	@echo "Usage:   ./$(MIDIKIT_TEST_NAME)"
 	@echo "         Compare results with USB Raw mode (apc_mini_test)"
+
+# Virtual MIDI benchmark (pure MidiKit, no hardware)
+VIRTUAL_BENCHMARK_NAME = virtual_midi_benchmark
+.PHONY: benchmark-virtual
+benchmark-virtual: $(VIRTUAL_BENCHMARK_NAME)
+
+$(VIRTUAL_BENCHMARK_NAME): $(VIRTUAL_BENCHMARK_OBJECTS) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(HAIKU_CXXFLAGS) -o $@ $^ $(HAIKU_LIBS)
+	@echo "Built virtual MIDI benchmark: $(VIRTUAL_BENCHMARK_NAME)"
+	@echo ""
+	@echo "Purpose: Measure pure MidiKit performance (no hardware/USB)"
+	@echo "Usage:   ./$(VIRTUAL_BENCHMARK_NAME)"
+	@echo "         Use results as baseline for hardware comparison"
 
 # Testing targets
 .PHONY: test
